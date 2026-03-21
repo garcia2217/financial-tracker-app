@@ -1,12 +1,15 @@
 from uuid import UUID
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+import bcrypt
 
 from app.core.exceptions import ResourceNotFoundError
 from app.repositories.user import UserRepository
 from app.schemas.user import UserCreate, UserUpdate
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 class UserService:
     def __init__(self, session: AsyncSession):
@@ -27,11 +30,11 @@ class UserService:
 
     async def create_user(self, user_in: UserCreate):
         if user_in.password:
-            user_in.password = pwd_context.hash(user_in.password)
+            user_in.password = hash_password(user_in.password[:72])
         return await self.repo.create(user_in)
 
     async def update_user(self, user_id: UUID, user_in: UserUpdate):
         user = await self.get_user(user_id)
         if user_in.password:
-            user_in.password = pwd_context.hash(user_in.password)
+            user_in.password = hash_password(user_in.password[:72])
         return await self.repo.update(user, user_in)

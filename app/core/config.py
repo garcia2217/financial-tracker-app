@@ -3,9 +3,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
-    DB_USER: str = "postgres.kqpvlfwxscudcrmggfvg"
+    DB_USER: str = "postgres.zegamrtfnimzsfkpstmc"
     DB_PASSWORD: str
-    DB_HOST: str
+    DB_HOST: str = "aws-1-ap-southeast-1.pooler.supabase.com"
     DB_PORT: str = "6543"
     DB_NAME: str = "postgres"
     

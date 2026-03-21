@@ -1,0 +1,28 @@
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+
+from app.services.user import UserService
+from app.services.wallet import WalletService
+from app.services.category import CategoryService
+from app.services.transaction import TransactionService
+from app.services.gemini import GeminiService
+from app.services.telegram_bot import TelegramBotService
+
+def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
+    return UserService(db)
+
+def get_wallet_service(db: AsyncSession = Depends(get_db)) -> WalletService:
+    return WalletService(db)
+
+def get_category_service(db: AsyncSession = Depends(get_db)) -> CategoryService:
+    return CategoryService(db)
+
+def get_transaction_service(db: AsyncSession = Depends(get_db)) -> TransactionService:
+    return TransactionService(db)
+
+def get_gemini_service() -> GeminiService:
+    return GeminiService()
+
+def get_telegram_service() -> TelegramBotService:
+    return TelegramBotService()

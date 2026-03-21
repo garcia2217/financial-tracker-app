@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.exceptions import ResourceNotFoundError, AppDomainError
+from app.routers.telegram import router as telegram_router
 
 app = FastAPI(
     title="Financial Tracker App",
@@ -34,3 +35,5 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+app.include_router(telegram_router)

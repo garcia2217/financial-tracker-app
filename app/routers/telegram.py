@@ -23,6 +23,9 @@ from app.dependencies.services import (
 
 router = APIRouter(prefix="/api/v1/telegram", tags=["telegram"])
 
+# Simple in-memory cache to prevent Telegram timeout retries from causing duplicate actions
+processed_updates = set()
+
 @router.post("/webhook")
 async def telegram_webhook(
     payload: TelegramWebhook,
@@ -33,6 +36,14 @@ async def telegram_webhook(
     gemini_service: GeminiService = Depends(get_gemini_service),
     telegram_service: TelegramBotService = Depends(get_telegram_service)
 ):
+    # Ignore Telegram's aggressive retries by checking the update_id
+    if payload.update_id in processed_updates:
+        return {"status": "already_processed"}
+        
+    processed_updates.add(payload.update_id)
+    if len(processed_updates) > 5000:
+        processed_updates.clear() # Prevent memory leak and reset
+        
     # Ignore generic actions that aren't messages
     if not payload.message or not payload.message.text:
         return {"status": "ignored"}

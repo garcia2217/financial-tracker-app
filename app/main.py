@@ -1,13 +1,33 @@
+from contextlib import asynccontextmanager
+from sqlalchemy import text
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.database import engine
 from app.core.exceptions import ResourceNotFoundError, AppDomainError
 from app.routers.telegram import router as telegram_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        print("✅ Successfully connected to the database!")
+    except Exception as e:
+        print(f"❌ Failed to connect to the database: {e}")
+        raise e
+        
+    yield
+    
+    await engine.dispose()
+    print("🛑 Database connection closed.")
 
 app = FastAPI(
     title="Financial Tracker App",
     debug=settings.DEBUG,
+    lifespan=lifespan,
 )
 
 @app.exception_handler(ResourceNotFoundError)
@@ -24,9 +44,13 @@ async def app_domain_error_handler(request: Request, exc: AppDomainError):
         content={"detail": str(exc)}
     )
 
+import traceback
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # In a real app we would log the full traceback here using a logger
+    # Print the error out to the console so we can see why it's failing!
+    print(f"Global Exception caught on {request.url.path}:")
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={"detail": "An unexpected error occurred."}

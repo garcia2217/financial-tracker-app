@@ -3,6 +3,8 @@ from .wallet import WalletRepository
 from .category import CategoryRepository
 from .transaction import TransactionRepository
 from .budget import BudgetRepository
+from .person import PersonRepository
+from .debt import DebtRepository
 
 __all__ = [
     "UserRepository",
@@ -10,4 +12,6 @@ __all__ = [
     "CategoryRepository",
     "TransactionRepository",
     "BudgetRepository",
+    "PersonRepository",
+    "DebtRepository",
 ]

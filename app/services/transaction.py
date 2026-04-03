@@ -2,17 +2,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ResourceNotFoundError, AppDomainError
-from app.repositories.transaction import TransactionRepository
-from app.schemas.transaction import TransactionCreate
+from app.repositories import TransactionRepository
+from app.schemas import TransactionCreate, WalletUpdate
 from app.services.wallet import WalletService
-from app.schemas.wallet import WalletUpdate
 
 class TransactionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = TransactionRepository(session)
         self.wallet_service = WalletService(session)
-
+        
     async def get_transaction(self, transaction_id: UUID):
         txn = await self.repo.get_by_id(transaction_id)
         if not txn:

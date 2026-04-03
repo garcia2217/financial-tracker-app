@@ -5,6 +5,7 @@ from .transaction import TransactionRepository
 from .budget import BudgetRepository
 from .person import PersonRepository
 from .debt import DebtRepository
+from .queries.financial_overview import FinancialOverviewRepository
 
 __all__ = [
     "UserRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "BudgetRepository",
     "PersonRepository",
     "DebtRepository",
+    "FinancialOverviewRepository",
 ]

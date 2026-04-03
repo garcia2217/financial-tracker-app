@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import ResourceNotFoundError, AppDomainError
-from app.routers.telegram import router as telegram_router
+from app.routers import telegram_router, financial_overview_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,3 +61,4 @@ async def health_check():
     return {"status": "ok"}
 
 app.include_router(telegram_router)
+app.include_router(financial_overview_router)

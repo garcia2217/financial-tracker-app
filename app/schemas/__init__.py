@@ -6,6 +6,7 @@ from .budget import BudgetCreate, BudgetUpdate, BudgetResponse, BudgetBase
 from .person import PersonCreate, PersonUpdate, PersonResponse
 from .debt import DebtCreate, DebtUpdate, DebtResponse
 from .telegram import TelegramWebhook
+from .financial_overview import FinancialOverview, TransactionOverview
 
 __all__ = [
     "UserCreate", "UserUpdate", "UserResponse",
@@ -16,4 +17,5 @@ __all__ = [
     "BudgetCreate", "BudgetUpdate", "BudgetResponse", "BudgetBase",
     "PersonCreate", "PersonUpdate", "PersonResponse",
     "DebtCreate", "DebtUpdate", "DebtResponse",
+    "FinancialOverview", "TransactionOverview",
 ]

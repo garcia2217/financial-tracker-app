@@ -8,6 +8,7 @@ from app.services.category import CategoryService
 from app.services.transaction import TransactionService
 from app.services.gemini import GeminiService
 from app.services.telegram_bot import TelegramBotService
+from app.services.financial_overview import FinancialOverviewService
 
 def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
     return UserService(db)
@@ -26,3 +27,6 @@ def get_gemini_service() -> GeminiService:
 
 def get_telegram_service() -> TelegramBotService:
     return TelegramBotService()
+
+def get_financial_overview_service(db: AsyncSession = Depends(get_db)) -> FinancialOverviewService:
+    return FinancialOverviewService(db)

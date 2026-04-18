@@ -16,6 +16,7 @@ from app.core.database import engine
 from app.core.exceptions import AppDomainError, ResourceNotFoundError
 from app.routers import (
     auth_router,
+    budgets_router,
     categories_router,
     financial_overview_router,
     telegram_router,
@@ -112,5 +113,6 @@ app.include_router(users_router)
 app.include_router(transactions_router)
 app.include_router(wallets_router)
 app.include_router(categories_router)
+app.include_router(budgets_router)
 app.include_router(telegram_router)
 app.include_router(financial_overview_router)

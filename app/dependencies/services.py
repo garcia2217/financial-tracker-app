@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.auth import AuthService
+from app.services.budget import BudgetService
 from app.services.category import CategoryService
 from app.services.financial_overview import FinancialOverviewService
 from app.services.gemini import GeminiService
@@ -14,6 +15,10 @@ from app.services.wallet import WalletService
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(db)
+
+
+def get_budget_service(db: AsyncSession = Depends(get_db)) -> BudgetService:
+    return BudgetService(db)
 
 
 def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:

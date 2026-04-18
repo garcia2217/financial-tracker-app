@@ -6,6 +6,7 @@ from typing import Sequence
 from app.models.budget import Budget
 from app.schemas.budget import BudgetCreate, BudgetUpdate
 
+
 class BudgetRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -14,9 +15,44 @@ class BudgetRepository:
         result = await self.session.execute(select(Budget).where(Budget.id == budget_id))
         return result.scalars().first()
 
+    async def get_by_id_for_user(self, budget_id: UUID, user_id: UUID) -> Budget | None:
+        result = await self.session.execute(
+            select(Budget).where(Budget.id == budget_id, Budget.user_id == user_id)
+        )
+        return result.scalars().first()
+
     async def get_user_budgets(self, user_id: UUID) -> Sequence[Budget]:
         result = await self.session.execute(select(Budget).where(Budget.user_id == user_id))
         return result.scalars().all()
+
+    async def get_user_defaults(self, user_id: UUID) -> Sequence[Budget]:
+        result = await self.session.execute(
+            select(Budget).where(Budget.user_id == user_id, Budget.is_default == True)  # noqa: E712
+        )
+        return result.scalars().all()
+
+    async def get_user_overrides_for_month(
+        self, user_id: UUID, year: int, month: int
+    ) -> Sequence[Budget]:
+        result = await self.session.execute(
+            select(Budget).where(
+                Budget.user_id == user_id,
+                Budget.is_default == False,  # noqa: E712
+                Budget.year == year,
+                Budget.month == month,
+            )
+        )
+        return result.scalars().all()
+
+    async def get_default_by_category(self, user_id: UUID, category_id: UUID) -> Budget | None:
+        result = await self.session.execute(
+            select(Budget).where(
+                Budget.user_id == user_id,
+                Budget.category_id == category_id,
+                Budget.is_default == True,  # noqa: E712
+            )
+        )
+        return result.scalars().first()
 
     async def create(self, budget_in: BudgetCreate) -> Budget:
         db_budget = Budget(**budget_in.model_dump(exclude_unset=True))
@@ -33,3 +69,7 @@ class BudgetRepository:
         await self.session.commit()
         await self.session.refresh(db_budget)
         return db_budget
+
+    async def delete(self, db_budget: Budget) -> None:
+        await self.session.delete(db_budget)
+        await self.session.commit()

@@ -1,4 +1,5 @@
 from .auth import router as auth_router
+from .budgets import router as budgets_router
 from .categories import router as categories_router
 from .financial_overview import router as financial_overview_router
 from .telegram import router as telegram_router
@@ -8,6 +9,7 @@ from .wallets import router as wallets_router
 
 __all__ = [
     "auth_router",
+    "budgets_router",
     "categories_router",
     "financial_overview_router",
     "telegram_router",

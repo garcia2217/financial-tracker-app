@@ -21,6 +21,8 @@ PAGE_SIZE = 100
 async def list_transactions(
     request: Request,
     page: int = 1,
+    year: int | None = None,
+    month: int | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
@@ -28,8 +30,10 @@ async def list_transactions(
     service = TransactionService(db)
 
     offset = (page - 1) * PAGE_SIZE
-    transactions = await service.get_user_transactions(current_user.id, limit=PAGE_SIZE, offset=offset)
-    total = await service.count_user_transactions(current_user.id)
+    transactions = await service.get_user_transactions(
+        current_user.id, limit=PAGE_SIZE, offset=offset, year=year, month=month
+    )
+    total = await service.count_user_transactions(current_user.id, year=year, month=month)
 
     data = [TransactionResponse.model_validate(t).model_dump(mode="json") for t in transactions]
 

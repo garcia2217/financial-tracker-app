@@ -1,10 +1,11 @@
 from uuid import UUID
-from sqlalchemy import func, select
+from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate
+
 
 class TransactionRepository:
     def __init__(self, session: AsyncSession):
@@ -14,20 +15,42 @@ class TransactionRepository:
         result = await self.session.execute(select(Transaction).where(Transaction.id == transaction_id))
         return result.scalars().first()
 
-    async def get_user_transactions(self, user_id: UUID, limit: int = 50, offset: int = 0) -> Sequence[Transaction]:
-        result = await self.session.execute(
+    async def get_user_transactions(
+        self,
+        user_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> Sequence[Transaction]:
+        stmt = (
             select(Transaction)
             .where(Transaction.user_id == user_id)
             .order_by(Transaction.transaction_date.desc())
             .offset(offset)
             .limit(limit)
         )
+        if year is not None and month is not None:
+            stmt = stmt.where(
+                extract("year", Transaction.transaction_date) == year,
+                extract("month", Transaction.transaction_date) == month,
+            )
+        result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def count_user_transactions(self, user_id: UUID) -> int:
-        result = await self.session.execute(
-            select(func.count()).select_from(Transaction).where(Transaction.user_id == user_id)
-        )
+    async def count_user_transactions(
+        self,
+        user_id: UUID,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> int:
+        stmt = select(func.count()).select_from(Transaction).where(Transaction.user_id == user_id)
+        if year is not None and month is not None:
+            stmt = stmt.where(
+                extract("year", Transaction.transaction_date) == year,
+                extract("month", Transaction.transaction_date) == month,
+            )
+        result = await self.session.execute(stmt)
         return result.scalar_one()
 
     async def create(self, transaction_in: TransactionCreate) -> Transaction:

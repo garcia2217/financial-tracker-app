@@ -25,11 +25,23 @@ class TransactionService:
             raise ResourceNotFoundError(resource="Transaction", id=str(transaction_id))
         return txn
 
-    async def get_user_transactions(self, user_id: UUID, limit: int = 100, offset: int = 0):
-        return await self.repo.get_user_transactions(user_id, limit, offset)
+    async def get_user_transactions(
+        self,
+        user_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+        year: int | None = None,
+        month: int | None = None,
+    ):
+        return await self.repo.get_user_transactions(user_id, limit, offset, year=year, month=month)
 
-    async def count_user_transactions(self, user_id: UUID) -> int:
-        return await self.repo.count_user_transactions(user_id)
+    async def count_user_transactions(
+        self,
+        user_id: UUID,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> int:
+        return await self.repo.count_user_transactions(user_id, year=year, month=month)
 
     async def create_transaction(self, transaction_in: TransactionCreate):
         # --- Validate source wallet ownership and existence ---

@@ -15,6 +15,17 @@ class TransactionCreate(TransactionBase):
     category_id: Optional[UUID] = None
     destination_wallet_id: Optional[UUID] = None
 
+
+class TransactionCreateRequest(BaseModel):
+    """API-layer schema for POST /transactions. user_id is injected from the JWT, not sent by the client."""
+    amount: float = Field(..., gt=0)
+    type: Literal["income", "expense", "transfer"]
+    description: str = Field(..., min_length=1, max_length=500)
+    wallet_id: UUID
+    category_id: Optional[UUID] = None
+    destination_wallet_id: Optional[UUID] = None
+    transaction_date: datetime
+
 class TransactionUpdate(BaseModel):
     amount: Optional[float] = Field(None, gt=0)
     type: Optional[Literal["income", "expense", "transfer"]] = None

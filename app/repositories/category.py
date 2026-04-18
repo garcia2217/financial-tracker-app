@@ -1,5 +1,5 @@
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
@@ -15,7 +15,14 @@ class CategoryRepository:
         return result.scalars().first()
 
     async def get_user_categories(self, user_id: UUID) -> Sequence[Category]:
-        result = await self.session.execute(select(Category).where(Category.user_id == user_id))
+        result = await self.session.execute(
+            select(Category).where(
+                or_(
+                    Category.user_id == user_id,
+                    Category.user_id == None
+                )
+            )
+        )
         return result.scalars().all()
         
     async def get_user_category_by_name(self, user_id: UUID, name: str) -> Category | None:

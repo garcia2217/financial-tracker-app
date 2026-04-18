@@ -16,7 +16,7 @@ class CategoryUpdate(BaseModel):
 
 class CategoryResponse(CategoryBase):
     id: UUID
-    user_id: UUID
+    user_id: UUID | None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

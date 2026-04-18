@@ -14,7 +14,15 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import AppDomainError, ResourceNotFoundError
-from app.routers import auth_router, financial_overview_router, telegram_router, users_router
+from app.routers import (
+    auth_router,
+    categories_router,
+    financial_overview_router,
+    telegram_router,
+    transactions_router,
+    users_router,
+    wallets_router,
+)
 from app.schemas.response import ApiErrorCode, build_error_response
 
 logger = logging.getLogger(__name__)
@@ -59,7 +67,7 @@ app.add_middleware(
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
-        status_code=422,
+        status_code=400,
         content=build_error_response(
             message="Validation error",
             code=ApiErrorCode.VALIDATION_ERROR,
@@ -101,5 +109,8 @@ async def health_check():
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(transactions_router)
+app.include_router(wallets_router)
+app.include_router(categories_router)
 app.include_router(telegram_router)
 app.include_router(financial_overview_router)

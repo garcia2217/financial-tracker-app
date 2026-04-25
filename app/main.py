@@ -18,7 +18,9 @@ from app.routers import (
     auth_router,
     budgets_router,
     categories_router,
+    debts_router,
     financial_overview_router,
+    persons_router,
     telegram_router,
     transactions_router,
     users_router,
@@ -114,5 +116,7 @@ app.include_router(transactions_router)
 app.include_router(wallets_router)
 app.include_router(categories_router)
 app.include_router(budgets_router)
+app.include_router(persons_router)
+app.include_router(debts_router)
 app.include_router(telegram_router)
 app.include_router(financial_overview_router)

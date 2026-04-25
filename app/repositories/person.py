@@ -15,7 +15,9 @@ class PersonRepository:
         return result.scalars().first()
 
     async def get_user_persons(self, user_id: UUID) -> Sequence[Person]:
-        result = await self.session.execute(select(Person).where(Person.user_id == user_id))
+        result = await self.session.execute(
+            select(Person).where(Person.user_id == user_id).order_by(Person.name)
+        )
         return result.scalars().all()
 
     async def create(self, person_in: PersonCreate) -> Person:

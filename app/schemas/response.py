@@ -63,6 +63,20 @@ class SuccessListResponse(Envelope[list[T]]):
     data: list[T]
 
 
+class NoContentResponse(Envelope[None]):
+    """
+    Standard wrapper for responses with no body (HTTP 201, 204, etc.).
+    
+    Use this when the operation succeeded but there is nothing meaningful
+    to return — e.g. a DELETE, an acknowledged write, or a fire-and-forget
+    action. The envelope still carries metadata so clients can correlate
+    the request via request_id.
+    """
+
+    status: Literal[ResponseStatus.SUCCESS] = ResponseStatus.SUCCESS
+    data: None = None
+
+
 class ErrorDetail(BaseModel):
     """Detailed error payload."""
 
@@ -120,6 +134,24 @@ def build_paginated_response(
         ),
         data=data,
     ).model_dump()
+
+
+def build_no_content_response(request_id: str) -> dict:
+    """
+    Constructs a response envelope for operations that produce no body.
+
+    Suitable for HTTP 201 (when no resource URI is returned), 204, or any
+    acknowledged write where returning data would be meaningless. The caller
+    is still responsible for setting the correct HTTP status code on the
+    actual HTTP response object.
+
+    Args:
+        request_id: The correlation ID (Sentry trace ID).
+    """
+    return NoContentResponse(
+        meta=MetaBase(request_id=request_id),
+    ).model_dump()
+
     
 def build_error_response(
     message: str,

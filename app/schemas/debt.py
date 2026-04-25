@@ -10,14 +10,20 @@ class DebtBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     due_date: Optional[datetime] = None
 
+class DebtCreateRequest(DebtBase):
+    """Request body for POST /debts. user_id, amount_settled, and status are excluded — set by the backend."""
+    pass
+
 class DebtCreate(DebtBase):
     user_id: UUID
+
+class DebtSettleRequest(BaseModel):
+    """Request body for PATCH /debts/{id}. Sends cumulative amount_settled; backend re-derives status."""
+    amount_settled: float = Field(..., ge=0)
 
 class DebtUpdate(BaseModel):
     amount_settled: Optional[float] = Field(None, ge=0)
     status: Optional[Literal["pending", "partial", "settled"]] = None
-    description: Optional[str] = Field(None, max_length=500)
-    due_date: Optional[datetime] = None
 
 class DebtResponse(DebtBase):
     id: UUID

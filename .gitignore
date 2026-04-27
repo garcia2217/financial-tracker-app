@@ -12,5 +12,4 @@ wheels/
 .vscode
 .claude
 
-AUTH_SERVICE_CONTRACT.md
-TRANSACTION_CONTRACT.md
+/docs

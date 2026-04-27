@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
+from app.models.transaction import Transaction
 from app.models.wallet import Wallet
 from app.schemas.wallet import WalletCreate, WalletUpdate
 
@@ -33,3 +34,13 @@ class WalletRepository:
         await self.session.commit()
         await self.session.refresh(db_wallet)
         return db_wallet
+
+    async def has_transactions(self, wallet_id: UUID) -> bool:
+        result = await self.session.execute(
+            select(Transaction.id).where(Transaction.wallet_id == wallet_id).limit(1)
+        )
+        return result.scalars().first() is not None
+
+    async def delete(self, db_wallet: Wallet) -> None:
+        await self.session.delete(db_wallet)
+        await self.session.commit()

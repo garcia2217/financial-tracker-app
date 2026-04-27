@@ -5,6 +5,7 @@ from app.core.exceptions import ResourceNotFoundError
 from app.repositories.category import CategoryRepository
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
+
 class CategoryService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -29,9 +30,17 @@ class CategoryService:
     async def create_category(self, category_in: CategoryCreate):
         return await self.repo.create(category_in)
 
-    async def update_category(self, category_id: UUID, category_in: CategoryUpdate):
+    async def update_category(self, category_id: UUID, user_id: UUID, category_in: CategoryUpdate):
         category = await self.get_category(category_id)
+        if category.user_id != user_id:
+            raise ResourceNotFoundError(resource="Category", id=str(category_id))
         return await self.repo.update(category, category_in)
+
+    async def delete_category(self, category_id: UUID, user_id: UUID) -> None:
+        category = await self.get_category(category_id)
+        if category.user_id != user_id:
+            raise ResourceNotFoundError(resource="Category", id=str(category_id))
+        await self.repo.delete_with_cascade(category)
         
     async def seed_default_categories(self, user_id: UUID):
         defaults = [

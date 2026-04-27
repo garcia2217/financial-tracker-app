@@ -6,6 +6,12 @@ from typing import Optional
 class WalletBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
 
+
+class WalletBody(BaseModel):
+    """POST /wallets request body. user_id is injected from the JWT, not accepted from the client."""
+    name: str = Field(..., min_length=1, max_length=100)
+    balance: float = Field(default=0.0)
+
 class WalletCreate(WalletBase):
     user_id: UUID
     balance: float = Field(default=0.0)

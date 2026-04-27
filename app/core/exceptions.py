@@ -7,3 +7,8 @@ class ResourceNotFoundError(AppDomainError):
         self.resource = resource
         self.id = id
         super().__init__(f"{resource} with id {id} not found")
+
+
+class BusinessRuleViolationError(AppDomainError):
+    def __init__(self, message: str):
+        super().__init__(message)

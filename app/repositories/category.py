@@ -1,9 +1,11 @@
 from uuid import UUID
-from sqlalchemy import select, or_
+from sqlalchemy import delete as sql_delete, select, or_, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
+from app.models.budget import Budget
 from app.models.category import Category
+from app.models.transaction import Transaction
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
 class CategoryRepository:
@@ -46,3 +48,16 @@ class CategoryRepository:
         await self.session.commit()
         await self.session.refresh(db_category)
         return db_category
+
+    async def delete_with_cascade(self, db_category: Category) -> None:
+        """Nullify category_id on transactions, cascade-delete budgets, then delete the category."""
+        await self.session.execute(
+            sql_update(Transaction)
+            .where(Transaction.category_id == db_category.id)
+            .values(category_id=None)
+        )
+        await self.session.execute(
+            sql_delete(Budget).where(Budget.category_id == db_category.id)
+        )
+        await self.session.delete(db_category)
+        await self.session.commit()

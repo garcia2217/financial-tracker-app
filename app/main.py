@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
-from app.core.exceptions import AppDomainError, ResourceNotFoundError
+from app.core.exceptions import AppDomainError, BusinessRuleViolationError, ResourceNotFoundError
 from app.routers import (
     auth_router,
     budgets_router,
@@ -84,7 +84,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def resource_not_found_handler(request: Request, exc: ResourceNotFoundError):
     return JSONResponse(
         status_code=404,
-        content={"detail": str(exc)},
+        content=build_error_response(
+            message=str(exc),
+            code=ApiErrorCode.NOT_FOUND,
+            request_id="",
+        ),
+    )
+
+
+@app.exception_handler(BusinessRuleViolationError)
+async def business_rule_violation_handler(request: Request, exc: BusinessRuleViolationError):
+    return JSONResponse(
+        status_code=422,
+        content=build_error_response(
+            message=str(exc),
+            code=ApiErrorCode.BUSINESS_RULE_VIOLATION,
+            request_id="",
+        ),
     )
 
 

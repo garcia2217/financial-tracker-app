@@ -7,6 +7,12 @@ class CategoryBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     type: Literal["income", "expense"]
 
+
+class CategoryBody(BaseModel):
+    """POST /categories request body. user_id is injected from the JWT, not accepted from the client."""
+    name: str = Field(..., min_length=1, max_length=100)
+    type: Literal["income", "expense"]
+
 class CategoryCreate(CategoryBase):
     user_id: UUID
 

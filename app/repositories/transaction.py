@@ -1,10 +1,10 @@
 from uuid import UUID
-from sqlalchemy import extract, func, select
+from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionCreate
+from app.schemas.transaction import TransactionCreate, TransactionMonthlySummary
 
 
 class TransactionRepository:
@@ -26,7 +26,7 @@ class TransactionRepository:
         stmt = (
             select(Transaction)
             .where(Transaction.user_id == user_id)
-            .order_by(Transaction.transaction_date.desc())
+            .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
@@ -52,6 +52,24 @@ class TransactionRepository:
             )
         result = await self.session.execute(stmt)
         return result.scalar_one()
+
+    async def get_monthly_summary(self, user_id: UUID, year: int, month: int) -> TransactionMonthlySummary:
+        stmt = select(
+            func.coalesce(
+                func.sum(case((Transaction.type == "income", Transaction.amount), else_=0)), 0
+            ).label("total_income"),
+            func.coalesce(
+                func.sum(case((Transaction.type == "expense", Transaction.amount), else_=0)), 0
+            ).label("total_expense"),
+        ).where(
+            Transaction.user_id == user_id,
+            Transaction.type != "transfer",
+            extract("year", Transaction.transaction_date) == year,
+            extract("month", Transaction.transaction_date) == month,
+        )
+        result = await self.session.execute(stmt)
+        row = result.one()
+        return TransactionMonthlySummary(totalIncome=float(row.total_income), totalExpense=float(row.total_expense))
 
     async def create(self, transaction_in: TransactionCreate) -> Transaction:
         # Note: business logic like updating the wallet balance belongs in the Service layer, not the Repository

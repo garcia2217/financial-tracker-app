@@ -5,7 +5,7 @@ from app.core.exceptions import AppDomainError, ResourceNotFoundError
 from app.models.transaction import Transaction
 from app.repositories.transaction import TransactionRepository
 from app.repositories.wallet import WalletRepository
-from app.schemas.transaction import TransactionCreate
+from app.schemas.transaction import TransactionCreate, TransactionMonthlySummary
 
 
 class BusinessRuleViolationError(AppDomainError):
@@ -42,6 +42,9 @@ class TransactionService:
         month: int | None = None,
     ) -> int:
         return await self.repo.count_user_transactions(user_id, year=year, month=month)
+
+    async def get_monthly_summary(self, user_id: UUID, year: int, month: int) -> TransactionMonthlySummary:
+        return await self.repo.get_monthly_summary(user_id, year, month)
 
     async def create_transaction(self, transaction_in: TransactionCreate):
         # --- Validate source wallet ownership and existence ---

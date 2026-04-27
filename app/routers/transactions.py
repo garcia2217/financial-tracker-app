@@ -49,6 +49,53 @@ async def list_transactions(
     )
 
 
+@router.get("/recent")
+async def get_recent_transactions(
+    request: Request,
+    limit: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    request_id = str(uuid.uuid4())
+    service = TransactionService(db)
+
+    transactions = await service.get_user_transactions(current_user.id, limit=limit, offset=0)
+    data = [TransactionResponse.model_validate(t).model_dump(mode="json") for t in transactions]
+
+    return JSONResponse(
+        status_code=200,
+        content=build_paginated_response(
+            data=data,
+            request_id=request_id,
+            page=1,
+            page_size=limit,
+            total_items=len(data),
+        ),
+    )
+
+
+@router.get("/summary")
+async def get_monthly_summary(
+    request: Request,
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    request_id = str(uuid.uuid4())
+    service = TransactionService(db)
+
+    summary = await service.get_monthly_summary(current_user.id, year=year, month=month)
+
+    return JSONResponse(
+        status_code=200,
+        content=build_success_response(
+            data=summary.model_dump(),
+            request_id=request_id,
+        ),
+    )
+
+
 @router.post("")
 async def create_transaction(
     request: Request,

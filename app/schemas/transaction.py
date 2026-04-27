@@ -35,6 +35,11 @@ class TransactionUpdate(BaseModel):
     destination_wallet_id: Optional[UUID] = None
     transaction_date: Optional[datetime] = None
 
+class TransactionMonthlySummary(BaseModel):
+    totalIncome: float
+    totalExpense: float
+
+
 class TransactionResponse(TransactionBase):
     id: UUID
     user_id: UUID

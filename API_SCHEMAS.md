@@ -22,6 +22,8 @@ Represents a user in the system, either linked to Telegram or a standard web use
 | `id` | `UUID` | Unique identifier (Primary Key) |
 | `telegram_chat_id` | `BigInt` (Optional) | User's Telegram Chat ID |
 | `username` | `String(255)` (Optional) | Unique username |
+| `email` | `String(255)` (Optional) | User's email (from OAuth or other) |
+| `google_id` | `String(255)` (Optional) | Google OAuth ID |
 | `telegram_state` | `String(50)` | Current FSM state for Telegram bot interactions |
 | `created_at` | `DateTime` | Timestamp of registration |
 | `updated_at` | `DateTime` | Last update timestamp |
@@ -32,6 +34,8 @@ Represents a user in the system, either linked to Telegram or a standard web use
 {
   "telegram_chat_id": 123456789,
   "username": "johndoe",
+  "email": "johndoe@example.com",
+  "google_id": "1234567890",
   "password": "securepassword123",
   "telegram_state": "AWAITING_USERNAME"
 }
@@ -52,6 +56,8 @@ Represents a user in the system, either linked to Telegram or a standard web use
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "telegram_chat_id": 123456789,
   "username": "johndoe",
+  "email": "johndoe@example.com",
+  "google_id": "1234567890",
   "telegram_state": "ACTIVE",
   "created_at": "2024-03-26T12:00:00Z",
   "updated_at": "2024-03-26T12:00:00Z"

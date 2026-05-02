@@ -21,6 +21,14 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.username == username))
         return result.scalars().first()
 
+    async def get_by_email(self, email: str) -> User | None:
+        result = await self.session.execute(select(User).where(User.email == email))
+        return result.scalars().first()
+
+    async def get_by_google_id(self, google_id: str) -> User | None:
+        result = await self.session.execute(select(User).where(User.google_id == google_id))
+        return result.scalars().first()
+
     async def create(self, user_in: UserCreate) -> User:
         db_user = User(**user_in.model_dump(exclude_unset=True))
         self.session.add(db_user)

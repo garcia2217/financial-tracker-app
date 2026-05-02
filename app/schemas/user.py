@@ -6,6 +6,8 @@ from typing import Optional
 class UserBase(BaseModel):
     telegram_chat_id: Optional[int] = None
     username: Optional[str] = Field(None, min_length=3, max_length=255)
+    email: Optional[str] = Field(None, max_length=255)
+    google_id: Optional[str] = Field(None, max_length=255)
     telegram_state: str = Field(default="AWAITING_USERNAME")
 
 class UserCreate(UserBase):
@@ -14,6 +16,8 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=255)
     password: Optional[str] = Field(None, min_length=8)
+    email: Optional[str] = Field(None, max_length=255)
+    google_id: Optional[str] = Field(None, max_length=255)
     telegram_state: Optional[str] = None
 
 class UserResponse(UserBase):

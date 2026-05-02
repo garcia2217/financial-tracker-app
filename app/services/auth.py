@@ -4,10 +4,13 @@ import bcrypt
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import uuid
+
 from app.core.config import settings
 from app.core.exceptions import AppDomainError
 from app.models.user import User
 from app.repositories.user import UserRepository
+from app.schemas.user import UserCreate, UserUpdate
 
 
 class InvalidCredentialsError(AppDomainError):
@@ -42,3 +45,30 @@ class AuthService:
             raise InvalidCredentialsError("Invalid username or password")
 
         return user
+
+    async def login_with_google(self, email: str, google_id: str, name: str | None = None) -> User:
+        user = await self.repo.get_by_google_id(google_id)
+        if user:
+            return user
+        
+        user = await self.repo.get_by_email(email)
+        if user:
+            # Link Google ID to existing email
+            return await self.repo.update(user, UserUpdate(google_id=google_id))
+            
+        # Create new user
+        base_username = email.split("@")[0]
+        username = base_username
+        suffix = 1
+        
+        while await self.repo.get_by_username(username):
+            username = f"{base_username}{suffix}"
+            suffix += 1
+            
+        user_in = UserCreate(
+            email=email,
+            google_id=google_id,
+            username=username,
+            telegram_state="ACTIVE",
+        )
+        return await self.repo.create(user_in)

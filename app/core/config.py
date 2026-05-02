@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     DEBUG: bool = False
 
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+
     @property
     def DATABASE_URL(self) -> str:
         # quote_plus safely encodes any special characters in the password (e.g., ?, $, @)

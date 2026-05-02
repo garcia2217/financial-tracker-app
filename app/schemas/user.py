@@ -19,6 +19,9 @@ class UserUpdate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     google_id: Optional[str] = Field(None, max_length=255)
     telegram_state: Optional[str] = None
+    telegram_chat_id: Optional[int] = None
+    telegram_link_code: Optional[str] = Field(None, max_length=10)
+    telegram_link_expires_at: Optional[datetime] = None
 
 class UserResponse(UserBase):
     id: UUID

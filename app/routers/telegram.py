@@ -32,56 +32,7 @@ STATE_AWAITING_PASSWORD = "AWAITING_PASSWORD"
 STATE_ACTIVE = "ACTIVE"
 
 
-async def _handle_new_user(
-    chat_id: int,
-    user_service: UserService,
-    telegram_service: TelegramBotService,
-) -> None:
-    await user_service.create_user(UserCreate(telegram_chat_id=chat_id, telegram_state=STATE_AWAITING_USERNAME))
-    await telegram_service.send_message(
-        chat_id,
-        "Welcome to the Financial Tracker! To get started and prepare for our future web dashboard, "
-        "please reply with your desired **username**."
-    )
-
-
-async def _handle_awaiting_username(
-    chat_id: int,
-    user_id,
-    text: str,
-    user_service: UserService,
-    telegram_service: TelegramBotService,
-) -> None:
-    if await user_service.get_user_by_username(text):
-        await telegram_service.send_message(chat_id, "That username is already taken. Please try another one.")
-        return
-
-    await user_service.update_user(user_id, UserUpdate(username=text, telegram_state=STATE_AWAITING_PASSWORD))
-    await telegram_service.send_message(
-        chat_id, "Great username! Now, please reply with a secure **password** (min 8 characters)."
-    )
-
-
-async def _handle_awaiting_password(
-    chat_id: int,
-    user_id,
-    text: str,
-    user_service: UserService,
-    category_service: CategoryService,
-    wallet_service: WalletService,
-    telegram_service: TelegramBotService,
-) -> None:
-    if len(text) < 8:
-        await telegram_service.send_message(chat_id, "Password must be at least 8 charac_ters. Please try again.")
-        return
-
-    await user_service.update_user(user_id, UserUpdate(password=text, telegram_state=STATE_ACTIVE))
-    await category_service.seed_default_categories(user_id)
-    await wallet_service.create_wallet(WalletCreate(user_id=user_id, name="Cash", balance=0.0))
-    await telegram_service.send_message(
-        chat_id,
-        "Registration complete! 🎉 You can now start logging your finances. Try sending something like 'Makan bakso 50k'."
-    )
+# Removed old auth handlers
 
 
 async def _handle_transaction(
@@ -159,11 +110,18 @@ async def telegram_webhook(
     user = await user_service.get_user_by_telegram_id(chat_id)
 
     if not user:
-        await _handle_new_user(chat_id, user_service, telegram_service)
-    elif user.telegram_state == STATE_AWAITING_USERNAME:
-        await _handle_awaiting_username(chat_id, user.id, text, user_service, telegram_service)
-    elif user.telegram_state == STATE_AWAITING_PASSWORD:
-        await _handle_awaiting_password(chat_id, user.id, text, user_service, category_service, wallet_service, telegram_service)
+        if text.startswith("/link "):
+            code = text.split(" ", 1)[1].strip()
+            success = await user_service.link_telegram_account(code, chat_id)
+            if success:
+                await telegram_service.send_message(chat_id, "✅ Account linked successfully! You can now log your finances here.")
+            else:
+                await telegram_service.send_message(chat_id, "❌ Invalid or expired linking code. Please generate a new one from the web dashboard.")
+        else:
+            await telegram_service.send_message(
+                chat_id, 
+                "Welcome! I don't recognize this account. Please log in to the web dashboard, click 'Connect Telegram', and send me the linking code provided (e.g., /link 123456)."
+            )
     else:
         await _handle_transaction(chat_id, user.id, text, gemini_service, category_service, wallet_service, transaction_service, telegram_service)
 

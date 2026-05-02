@@ -15,6 +15,8 @@ class User(Base):
     google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     telegram_state: Mapped[str] = mapped_column(String(50), default="AWAITING_USERNAME", server_default="AWAITING_USERNAME")
+    telegram_link_code: Mapped[str | None] = mapped_column(String(10), unique=True, nullable=True, index=True)
+    telegram_link_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

@@ -1,4 +1,7 @@
 from uuid import UUID
+from datetime import datetime, timedelta, timezone
+import random
+import string
 from sqlalchemy.ext.asyncio import AsyncSession
 import bcrypt
 
@@ -38,3 +41,36 @@ class UserService:
         if user_in.password:
             user_in.password = hash_password(user_in.password[:72])
         return await self.repo.update(user, user_in)
+
+    async def generate_telegram_link_code(self, user_id: UUID) -> str:
+        # Generate 6 digit code
+        code = ''.join(random.choices(string.digits, k=6))
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+        
+        await self.update_user(user_id, UserUpdate(
+            telegram_link_code=code,
+            telegram_link_expires_at=expires_at
+        ))
+        return code
+
+    async def link_telegram_account(self, code: str, chat_id: int) -> bool:
+        user = await self.repo.get_by_telegram_link_code(code)
+        if not user:
+            return False
+            
+        # Make datetime aware for comparison if it's naive
+        expires_at = user.telegram_link_expires_at
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            
+        if not expires_at or expires_at < datetime.now(timezone.utc):
+            return False
+            
+        # Update user
+        await self.update_user(user.id, UserUpdate(
+            telegram_chat_id=chat_id,
+            telegram_state="ACTIVE",
+            telegram_link_code=None,
+            telegram_link_expires_at=None
+        ))
+        return True

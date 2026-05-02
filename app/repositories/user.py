@@ -29,6 +29,10 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.google_id == google_id))
         return result.scalars().first()
 
+    async def get_by_telegram_link_code(self, code: str) -> User | None:
+        result = await self.session.execute(select(User).where(User.telegram_link_code == code))
+        return result.scalars().first()
+
     async def create(self, user_in: UserCreate) -> User:
         db_user = User(**user_in.model_dump(exclude_unset=True))
         self.session.add(db_user)

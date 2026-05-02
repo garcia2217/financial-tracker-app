@@ -1,7 +1,8 @@
 import uuid
 
+from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -14,6 +15,17 @@ from app.schemas.user import UserResponse
 from app.services.auth import AuthService, InvalidCredentialsError, create_access_token
 
 limiter = Limiter(key_func=get_remote_address)
+
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -77,5 +89,54 @@ async def logout(request: Request) -> Response:
         httponly=True,
         secure=not settings.DEBUG,
         samesite="strict",
+    )
+    return response
+
+
+@router.get("/google/login")
+async def login_google(request: Request):
+    """Initiates the Google OAuth2 login flow."""
+    redirect_uri = str(request.url_for('auth_google_callback'))
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+@router.get("/google/callback")
+async def auth_google_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handles the callback from Google, exchanges token, and logs the user in."""
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=oauth_failed")
+
+    user_info = token.get('userinfo')
+    if not user_info:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=no_user_info")
+
+    email = user_info.get("email")
+    google_id = user_info.get("sub")
+    name = user_info.get("name")
+
+    if not email or not google_id:
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=invalid_user_info")
+
+    service = AuthService(db)
+    user = await service.login_with_google(email=email, google_id=google_id, name=name)
+
+    app_token, max_age = create_access_token(str(user.id))
+
+    response = RedirectResponse(url=settings.FRONTEND_URL)
+    response.set_cookie(
+        key="access_token",
+        value=app_token,
+        httponly=True,
+        secure=not settings.DEBUG,
+        # 'lax' is required for the cookie to be sent during the cross-site redirect
+        # from Google back to our app domain, ensuring the user is immediately logged in.
+        samesite="lax",
+        path="/",
+        max_age=max_age,
     )
     return response

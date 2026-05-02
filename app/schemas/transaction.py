@@ -35,6 +35,17 @@ class TransactionUpdate(BaseModel):
     destination_wallet_id: Optional[UUID] = None
     transaction_date: Optional[datetime] = None
 
+
+class TransactionUpdateRequest(BaseModel):
+    """API-layer schema for PATCH /transactions/:id. All mutable fields are required (frontend sends full replacement)."""
+    amount: float = Field(..., gt=0)
+    type: Literal["income", "expense", "transfer"]
+    description: str = Field(..., min_length=1, max_length=500)
+    wallet_id: UUID
+    category_id: Optional[UUID] = None
+    destination_wallet_id: Optional[UUID] = None
+    transaction_date: datetime
+
 class TransactionMonthlySummary(BaseModel):
     totalIncome: float
     totalExpense: float

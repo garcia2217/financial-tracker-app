@@ -9,6 +9,11 @@ class ResourceNotFoundError(AppDomainError):
         super().__init__(f"{resource} with id {id} not found")
 
 
+class ForbiddenError(AppDomainError):
+    def __init__(self, message: str = "You do not have permission to perform this action"):
+        super().__init__(message)
+
+
 class BusinessRuleViolationError(AppDomainError):
     def __init__(self, message: str):
         super().__init__(message)

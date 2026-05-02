@@ -29,7 +29,13 @@ class CategoryRepository:
         
     async def get_user_category_by_name(self, user_id: UUID, name: str) -> Category | None:
         result = await self.session.execute(
-            select(Category).where(Category.user_id == user_id, Category.name.ilike(name))
+            select(Category).where(
+                or_(
+                    Category.user_id == user_id,
+                    Category.user_id.is_(None)
+                ),
+                Category.name.ilike(name)
+            )
         )
         return result.scalars().first()
 

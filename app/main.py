@@ -1,5 +1,6 @@
 import logging
 import traceback
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -86,7 +87,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content=build_error_response(
             message="Validation error",
             code=ApiErrorCode.VALIDATION_ERROR,
-            request_id="",
+            request_id=str(uuid.uuid4()),
             detail={"errors": exc.errors()},
         ),
     )
@@ -99,7 +100,7 @@ async def resource_not_found_handler(request: Request, exc: ResourceNotFoundErro
         content=build_error_response(
             message=str(exc),
             code=ApiErrorCode.NOT_FOUND,
-            request_id="",
+            request_id=str(uuid.uuid4()),
         ),
     )
 
@@ -111,7 +112,7 @@ async def business_rule_violation_handler(request: Request, exc: BusinessRuleVio
         content=build_error_response(
             message=str(exc),
             code=ApiErrorCode.BUSINESS_RULE_VIOLATION,
-            request_id="",
+            request_id=str(uuid.uuid4()),
         ),
     )
 
@@ -123,17 +124,22 @@ async def app_domain_error_handler(request: Request, exc: AppDomainError):
         content=build_error_response(
             message=str(exc),
             code=ApiErrorCode.VALIDATION_ERROR,
-            request_id="",
+            request_id=str(uuid.uuid4()),
         ),
     )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception on %s:\n%s", request.url.path, traceback.format_exc())
+    request_id = str(uuid.uuid4())
+    logger.error("Unhandled exception [%s] on %s:\n%s", request_id, request.url.path, traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "An unexpected error occurred."},
+        content=build_error_response(
+            message="An unexpected error occurred.",
+            code=ApiErrorCode.INTERNAL_ERROR,
+            request_id=request_id,
+        ),
     )
 
 

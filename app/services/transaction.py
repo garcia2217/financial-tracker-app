@@ -50,7 +50,7 @@ class TransactionService:
     async def create_transaction(self, transaction_in: TransactionCreate):
         # --- Validate source wallet ownership and existence ---
         wallet = await self.wallet_repo.get_by_id(transaction_in.wallet_id)
-        if not wallet:
+        if not wallet or wallet.user_id != transaction_in.user_id:
             raise ResourceNotFoundError(resource="Wallet", id=str(transaction_in.wallet_id))
 
         if transaction_in.type == "transfer":
@@ -63,7 +63,7 @@ class TransactionService:
                 )
 
             dest_wallet = await self.wallet_repo.get_by_id(transaction_in.destination_wallet_id)
-            if not dest_wallet:
+            if not dest_wallet or dest_wallet.user_id != transaction_in.user_id:
                 raise ResourceNotFoundError(
                     resource="Wallet", id=str(transaction_in.destination_wallet_id)
                 )
@@ -105,7 +105,7 @@ class TransactionService:
 
         # Validate new source wallet
         new_wallet = await self.wallet_repo.get_by_id(update_in.wallet_id)
-        if not new_wallet:
+        if not new_wallet or new_wallet.user_id != user_id:
             raise ResourceNotFoundError(resource="Wallet", id=str(update_in.wallet_id))
 
         # Validate transfer-specific rules
@@ -117,7 +117,7 @@ class TransactionService:
                     "Source and destination wallet must be different for a transfer"
                 )
             dest_wallet = await self.wallet_repo.get_by_id(update_in.destination_wallet_id)
-            if not dest_wallet:
+            if not dest_wallet or dest_wallet.user_id != user_id:
                 raise ResourceNotFoundError(
                     resource="Wallet", id=str(update_in.destination_wallet_id)
                 )

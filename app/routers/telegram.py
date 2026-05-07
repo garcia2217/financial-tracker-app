@@ -1,3 +1,5 @@
+from collections import deque
+
 from fastapi import APIRouter, Depends
 from app.schemas.telegram import TelegramWebhook
 from app.schemas.user import UserCreate, UserUpdate
@@ -22,9 +24,13 @@ from app.dependencies.services import (
 
 router = APIRouter(prefix="/api/v1/telegram", tags=["telegram"])
 
-# Simple in-memory deduplication cache to prevent Telegram timeout retries
-processed_updates: set[int] = set()
-MAX_CACHE_SIZE = 5000
+# In-process deduplication to absorb Telegram retry storms.
+# NOTE: This is process-local — duplicate delivery across workers is still possible
+# in a multi-worker deployment. Use a shared store (Redis/DB) if you scale beyond
+# a single worker.
+MAX_CACHE_SIZE = 1000
+_processed_ids: set[int] = set()
+_processed_order: deque[int] = deque()
 
 # Telegram conversation states
 STATE_AWAITING_USERNAME = "AWAITING_USERNAME"
@@ -95,12 +101,14 @@ async def telegram_webhook(
     gemini_service: GeminiService = Depends(get_gemini_service),
     telegram_service: TelegramBotService = Depends(get_telegram_service),
 ):
-    if payload.update_id in processed_updates:
+    if payload.update_id in _processed_ids:
         return {"status": "already_processed"}
 
-    processed_updates.add(payload.update_id)
-    if len(processed_updates) > MAX_CACHE_SIZE:
-        processed_updates.clear()
+    if len(_processed_ids) >= MAX_CACHE_SIZE:
+        oldest = _processed_order.popleft()
+        _processed_ids.discard(oldest)
+    _processed_ids.add(payload.update_id)
+    _processed_order.append(payload.update_id)
 
     if not payload.message or not payload.message.text:
         return {"status": "ignored"}

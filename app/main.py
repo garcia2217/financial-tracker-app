@@ -29,6 +29,11 @@ from app.routers import (
 )
 from app.schemas.response import ApiErrorCode, build_error_response
 
+logging.basicConfig(
+    level=logging.INFO if settings.DEBUG else logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
@@ -59,7 +64,11 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=settings.SECRET_KEY,
+    https_only=not settings.DEBUG
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -111,7 +120,11 @@ async def business_rule_violation_handler(request: Request, exc: BusinessRuleVio
 async def app_domain_error_handler(request: Request, exc: AppDomainError):
     return JSONResponse(
         status_code=400,
-        content={"detail": str(exc)},
+        content=build_error_response(
+            message=str(exc),
+            code=ApiErrorCode.VALIDATION_ERROR,
+            request_id="",
+        ),
     )
 
 

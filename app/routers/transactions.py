@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,7 +52,7 @@ async def list_transactions(
 @router.get("/recent")
 async def get_recent_transactions(
     request: Request,
-    limit: int,
+    limit: int = Query(default=10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:

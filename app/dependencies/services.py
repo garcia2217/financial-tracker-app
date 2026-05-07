@@ -1,4 +1,5 @@
 from fastapi import Depends
+from functools import lru_cache
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -33,9 +34,11 @@ def get_category_service(db: AsyncSession = Depends(get_db)) -> CategoryService:
 def get_transaction_service(db: AsyncSession = Depends(get_db)) -> TransactionService:
     return TransactionService(db)
 
+@lru_cache(maxsize=1)
 def get_gemini_service() -> GeminiService:
     return GeminiService()
 
+@lru_cache(maxsize=1)
 def get_telegram_service() -> TelegramBotService:
     return TelegramBotService()
 

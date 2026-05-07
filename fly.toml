@@ -1,5 +1,5 @@
 app = 'financial-tracker-app'
-primary_region = 'sin'
+primary_region = 'syd'
 
 [http_service]
   internal_port = 8080

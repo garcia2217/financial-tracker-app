@@ -1,8 +1,11 @@
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
+    ENVIRONMENT: Literal["local", "production"]
+
     DB_USER: str = "postgres.zegamrtfnimzsfkpstmc"
     DB_PASSWORD: str
     DB_HOST: str = "aws-1-ap-southeast-1.pooler.supabase.com"
@@ -17,14 +20,20 @@ class Settings(BaseSettings):
 
     TELEGRAM_BOT_TOKEN: str
     GEMINI_API_KEY: str
-    DEBUG: bool = False
 
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
 
     @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+    @property
+    def DEBUG(self) -> bool:
+        return not self.is_production
+
+    @property
     def DATABASE_URL(self) -> str:
-        # quote_plus safely encodes any special characters in the password (e.g., ?, $, @)
         encoded_password = quote_plus(self.DB_PASSWORD)
         return f"postgresql+asyncpg://{self.DB_USER}:{encoded_password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 

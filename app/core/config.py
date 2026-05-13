@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
-    ENVIRONMENT: Literal["local", "production"]
+    ENVIRONMENT: Literal["local", "production"] = "production"
 
     DB_USER: str = "postgres.zegamrtfnimzsfkpstmc"
     DB_PASSWORD: str

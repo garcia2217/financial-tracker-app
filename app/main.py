@@ -42,6 +42,12 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.getLogger(__name__).warning(
+        "Starting up | ENVIRONMENT=%s DEBUG=%s FRONTEND_URL=%s",
+        settings.ENVIRONMENT,
+        settings.DEBUG,
+        settings.FRONTEND_URL,
+    )
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))

@@ -133,9 +133,7 @@ async def auth_google_callback(
         value=app_token,
         httponly=True,
         secure=not settings.DEBUG,
-        # 'lax' is required for the cookie to be sent during the cross-site redirect
-        # from Google back to our app domain, ensuring the user is immediately logged in.
-        samesite="lax",
+        samesite="none" if not settings.DEBUG else "lax",
         path="/",
         max_age=max_age,
     )

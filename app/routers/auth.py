@@ -72,7 +72,7 @@ async def login(
         value=token,
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="strict",
+        samesite="none" if not settings.DEBUG else "lax",
         path="/",
         max_age=max_age,
     )
@@ -88,7 +88,7 @@ async def logout(request: Request) -> Response:
         path="/",
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="strict",
+        samesite="none" if not settings.DEBUG else "lax",
     )
     return response
 

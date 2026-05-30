@@ -37,7 +37,7 @@ async def generate_telegram_link(
 ) -> JSONResponse:
     request_id = str(uuid.uuid4())
     code = await user_service.generate_telegram_link_code(current_user.id)
-    
+
     return JSONResponse(
         status_code=200,
         content=build_success_response(

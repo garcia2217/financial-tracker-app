@@ -1,4 +1,6 @@
+import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, Request, Response
@@ -26,6 +28,9 @@ oauth.register(
         'scope': 'openid email profile'
     }
 )
+
+# code → (jwt_token, expires_at); one-time use, 2-minute TTL
+_pending_oauth_codes: dict[str, tuple[str, datetime]] = {}
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -125,9 +130,44 @@ async def auth_google_callback(
     service = AuthService(db)
     user = await service.login_with_google(email=email, google_id=google_id, name=name)
 
-    app_token, max_age = create_access_token(str(user.id))
+    app_token, _ = create_access_token(str(user.id))
 
-    response = RedirectResponse(url=settings.FRONTEND_URL)
+    code = secrets.token_urlsafe(32)
+    _pending_oauth_codes[code] = (app_token, datetime.now(timezone.utc) + timedelta(minutes=2))
+
+    return RedirectResponse(url=f"{settings.FRONTEND_URL}/auth/callback?code={code}")
+
+
+@router.post("/exchange")
+async def exchange_oauth_code(code: str) -> JSONResponse:
+    entry = _pending_oauth_codes.pop(code, None)
+
+    if entry is None:
+        return JSONResponse(
+            status_code=400,
+            content=build_error_response(
+                message="Invalid or expired code",
+                code=ApiErrorCode.VALIDATION_ERROR,
+                request_id=str(uuid.uuid4()),
+            ),
+        )
+
+    app_token, expires_at = entry
+    if datetime.now(timezone.utc) > expires_at:
+        return JSONResponse(
+            status_code=400,
+            content=build_error_response(
+                message="Code expired",
+                code=ApiErrorCode.VALIDATION_ERROR,
+                request_id=str(uuid.uuid4()),
+            ),
+        )
+
+    max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response = JSONResponse(
+        status_code=200,
+        content=build_success_response(data={}),
+    )
     response.set_cookie(
         key="access_token",
         value=app_token,

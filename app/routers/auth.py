@@ -166,7 +166,10 @@ async def exchange_oauth_code(code: str) -> JSONResponse:
     max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     response = JSONResponse(
         status_code=200,
-        content=build_success_response(data={}),
+        content=build_success_response(
+            data={},
+            request_id=str(uuid.uuid4()),
+        ),
     )
     response.set_cookie(
         key="access_token",

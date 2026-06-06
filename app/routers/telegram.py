@@ -1,6 +1,7 @@
 from collections import deque
 
 from fastapi import APIRouter, Depends
+from app.dependencies.telegram import verify_telegram_secret
 from app.schemas.telegram import TelegramWebhook
 from app.schemas.user import UserCreate, UserUpdate
 from app.schemas.wallet import WalletCreate
@@ -91,7 +92,7 @@ async def _handle_transaction(
         await telegram_service.send_message(chat_id, f"Failed to record transaction: {str(e)}")
 
 
-@router.post("/webhook")
+@router.post("/webhook", dependencies=[Depends(verify_telegram_secret)])
 async def telegram_webhook(
     payload: TelegramWebhook,
     user_service: UserService = Depends(get_user_service),

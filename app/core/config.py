@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     TELEGRAM_BOT_TOKEN: str
+    TELEGRAM_WEBHOOK_SECRET: str
     GEMINI_API_KEY: str
 
     GOOGLE_CLIENT_ID: str | None = None

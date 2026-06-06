@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import String, Numeric, ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,7 +13,7 @@ class Transaction(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     wallet_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("wallets.id"), index=True)
     category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
-    amount: Mapped[float] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     type: Mapped[str] = mapped_column(String(20)) # 'income', 'expense', 'transfer'
     description: Mapped[str] = mapped_column(String(500))
     destination_wallet_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("wallets.id"), nullable=True, index=True)

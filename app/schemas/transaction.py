@@ -1,10 +1,15 @@
+from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
+
+# Money is parsed and stored as Decimal to keep balance arithmetic exact.
+# Constraints mirror the Numeric(14, 2) database columns.
+MoneyAmount = Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=2)]
 
 class TransactionBase(BaseModel):
-    amount: float = Field(..., gt=0)
+    amount: MoneyAmount
     type: Literal["income", "expense", "transfer"]
     description: str = Field(..., min_length=1, max_length=500)
     transaction_date: Optional[datetime] = None
@@ -18,7 +23,7 @@ class TransactionCreate(TransactionBase):
 
 class TransactionCreateRequest(BaseModel):
     """API-layer schema for POST /transactions. user_id is injected from the JWT, not sent by the client."""
-    amount: float = Field(..., gt=0)
+    amount: MoneyAmount
     type: Literal["income", "expense", "transfer"]
     description: str = Field(..., min_length=1, max_length=500)
     wallet_id: UUID
@@ -27,7 +32,7 @@ class TransactionCreateRequest(BaseModel):
     transaction_date: datetime
 
 class TransactionUpdate(BaseModel):
-    amount: Optional[float] = Field(None, gt=0)
+    amount: Optional[MoneyAmount] = None
     type: Optional[Literal["income", "expense", "transfer"]] = None
     description: Optional[str] = Field(None, min_length=1, max_length=500)
     wallet_id: Optional[UUID] = None
@@ -38,7 +43,7 @@ class TransactionUpdate(BaseModel):
 
 class TransactionUpdateRequest(BaseModel):
     """API-layer schema for PATCH /transactions/:id. All mutable fields are required (frontend sends full replacement)."""
-    amount: float = Field(..., gt=0)
+    amount: MoneyAmount
     type: Literal["income", "expense", "transfer"]
     description: str = Field(..., min_length=1, max_length=500)
     wallet_id: UUID
@@ -52,6 +57,8 @@ class TransactionMonthlySummary(BaseModel):
 
 
 class TransactionResponse(TransactionBase):
+    # Emit money as a JSON number for wire compatibility (display only, no arithmetic).
+    amount: float
     id: UUID
     user_id: UUID
     wallet_id: UUID

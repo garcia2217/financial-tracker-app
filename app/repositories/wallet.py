@@ -15,6 +15,21 @@ class WalletRepository:
         result = await self.session.execute(select(Wallet).where(Wallet.id == wallet_id))
         return result.scalars().first()
 
+    async def get_by_id_for_update(self, wallet_id: UUID) -> Wallet | None:
+        """Fetch a wallet with a row-level lock (SELECT ... FOR UPDATE).
+
+        populate_existing forces a refresh from the locked row, so the caller
+        never operates on a stale balance left in the identity map by an earlier
+        read. This is what makes the balance update safe under concurrency.
+        """
+        result = await self.session.execute(
+            select(Wallet)
+            .where(Wallet.id == wallet_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return result.scalars().first()
+
     async def get_user_wallets(self, user_id: UUID) -> Sequence[Wallet]:
         result = await self.session.execute(select(Wallet).where(Wallet.user_id == user_id))
         return result.scalars().all()

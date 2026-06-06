@@ -1,4 +1,5 @@
 from collections import defaultdict
+from decimal import Decimal
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,42 @@ from app.schemas.transaction import TransactionCreate, TransactionMonthlySummary
 class BusinessRuleViolationError(AppDomainError):
     """Raised when a request violates a business rule (e.g. same-wallet transfer)."""
     pass
+
+
+def transaction_effect(
+    txn_type: str,
+    wallet_id: UUID,
+    destination_wallet_id: UUID | None,
+    amount: Decimal,
+) -> dict[UUID, Decimal]:
+    """Balance change a transaction imposes on wallets when applied.
+
+    Expense debits the source; income credits it; a transfer debits the source
+    and credits the destination. Pure function — no I/O — so it is unit-testable.
+    """
+    if txn_type == "expense":
+        return {wallet_id: -amount}
+    if txn_type == "income":
+        return {wallet_id: amount}
+    if txn_type == "transfer":
+        if destination_wallet_id is None:
+            raise AppDomainError("Transfers require a destination_wallet_id")
+        return {wallet_id: -amount, destination_wallet_id: amount}
+    raise AppDomainError(f"Invalid transaction type: {txn_type}")
+
+
+def negate_effect(effect: dict[UUID, Decimal]) -> dict[UUID, Decimal]:
+    """Reverse a transaction's effect (used to undo an existing transaction)."""
+    return {wallet_id: -delta for wallet_id, delta in effect.items()}
+
+
+def merge_deltas(*effects: dict[UUID, Decimal]) -> dict[UUID, Decimal]:
+    """Sum per-wallet deltas, dropping any that net to zero."""
+    merged: dict[UUID, Decimal] = defaultdict(Decimal)
+    for effect in effects:
+        for wallet_id, delta in effect.items():
+            merged[wallet_id] += delta
+    return {wallet_id: delta for wallet_id, delta in merged.items() if delta != 0}
 
 
 class TransactionService:
@@ -47,45 +84,55 @@ class TransactionService:
     async def get_monthly_summary(self, user_id: UUID, year: int, month: int) -> TransactionMonthlySummary:
         return await self.repo.get_monthly_summary(user_id, year, month)
 
+    async def _apply_deltas(self, deltas: dict[UUID, Decimal]) -> None:
+        """Apply per-wallet balance changes under row locks.
+
+        Wallets are locked in sorted id order to avoid deadlocks between
+        concurrent operations that touch the same set of wallets.
+        """
+        for wallet_id in sorted(deltas):
+            wallet = await self.wallet_repo.get_by_id_for_update(wallet_id)
+            if wallet is None:
+                raise ResourceNotFoundError(resource="Wallet", id=str(wallet_id))
+            wallet.balance = wallet.balance + deltas[wallet_id]
+            self.session.add(wallet)
+
+    async def _validate_wallet(self, wallet_id: UUID, user_id: UUID) -> None:
+        wallet = await self.wallet_repo.get_by_id(wallet_id)
+        if not wallet or wallet.user_id != user_id:
+            raise ResourceNotFoundError(resource="Wallet", id=str(wallet_id))
+
+    def _validate_transfer(
+        self, wallet_id: UUID, destination_wallet_id: UUID | None
+    ) -> None:
+        if not destination_wallet_id:
+            raise AppDomainError("Transfers require a destination_wallet_id")
+        if wallet_id == destination_wallet_id:
+            raise BusinessRuleViolationError(
+                "Source and destination wallet must be different for a transfer"
+            )
+
     async def create_transaction(self, transaction_in: TransactionCreate):
-        # --- Validate source wallet ownership and existence ---
-        wallet = await self.wallet_repo.get_by_id(transaction_in.wallet_id)
-        if not wallet or wallet.user_id != transaction_in.user_id:
-            raise ResourceNotFoundError(resource="Wallet", id=str(transaction_in.wallet_id))
+        await self._validate_wallet(transaction_in.wallet_id, transaction_in.user_id)
 
         if transaction_in.type == "transfer":
-            if not transaction_in.destination_wallet_id:
-                raise AppDomainError("Transfers require a destination_wallet_id")
+            self._validate_transfer(
+                transaction_in.wallet_id, transaction_in.destination_wallet_id
+            )
+            await self._validate_wallet(
+                transaction_in.destination_wallet_id, transaction_in.user_id
+            )
 
-            if transaction_in.wallet_id == transaction_in.destination_wallet_id:
-                raise BusinessRuleViolationError(
-                    "Source and destination wallet must be different for a transfer"
-                )
+        deltas = merge_deltas(
+            transaction_effect(
+                transaction_in.type,
+                transaction_in.wallet_id,
+                transaction_in.destination_wallet_id,
+                transaction_in.amount,
+            )
+        )
+        await self._apply_deltas(deltas)
 
-            dest_wallet = await self.wallet_repo.get_by_id(transaction_in.destination_wallet_id)
-            if not dest_wallet or dest_wallet.user_id != transaction_in.user_id:
-                raise ResourceNotFoundError(
-                    resource="Wallet", id=str(transaction_in.destination_wallet_id)
-                )
-
-            # Update both wallets in memory — no commit yet
-            wallet.balance = float(wallet.balance) - transaction_in.amount
-            dest_wallet.balance = float(dest_wallet.balance) + transaction_in.amount
-            self.session.add(wallet)
-            self.session.add(dest_wallet)
-
-        elif transaction_in.type == "expense":
-            wallet.balance = float(wallet.balance) - transaction_in.amount
-            self.session.add(wallet)
-
-        elif transaction_in.type == "income":
-            wallet.balance = float(wallet.balance) + transaction_in.amount
-            self.session.add(wallet)
-
-        else:
-            raise AppDomainError(f"Invalid transaction type: {transaction_in.type}")
-
-        # Add transaction record — no commit yet
         db_transaction = Transaction(**transaction_in.model_dump(exclude_unset=True))
         self.session.add(db_transaction)
 
@@ -103,54 +150,28 @@ class TransactionService:
         if txn.user_id != user_id:
             raise ForbiddenError("Transaction belongs to a different user")
 
-        # Validate new source wallet
-        new_wallet = await self.wallet_repo.get_by_id(update_in.wallet_id)
-        if not new_wallet or new_wallet.user_id != user_id:
-            raise ResourceNotFoundError(resource="Wallet", id=str(update_in.wallet_id))
+        await self._validate_wallet(update_in.wallet_id, user_id)
 
-        # Validate transfer-specific rules
         if update_in.type == "transfer":
-            if not update_in.destination_wallet_id:
-                raise AppDomainError("Transfers require a destination_wallet_id")
-            if update_in.wallet_id == update_in.destination_wallet_id:
-                raise BusinessRuleViolationError(
-                    "Source and destination wallet must be different for a transfer"
+            self._validate_transfer(update_in.wallet_id, update_in.destination_wallet_id)
+            await self._validate_wallet(update_in.destination_wallet_id, user_id)
+
+        # Reverse the old transaction's effect, then apply the new one.
+        deltas = merge_deltas(
+            negate_effect(
+                transaction_effect(
+                    txn.type, txn.wallet_id, txn.destination_wallet_id, txn.amount
                 )
-            dest_wallet = await self.wallet_repo.get_by_id(update_in.destination_wallet_id)
-            if not dest_wallet or dest_wallet.user_id != user_id:
-                raise ResourceNotFoundError(
-                    resource="Wallet", id=str(update_in.destination_wallet_id)
-                )
+            ),
+            transaction_effect(
+                update_in.type,
+                update_in.wallet_id,
+                update_in.destination_wallet_id,
+                update_in.amount,
+            ),
+        )
+        await self._apply_deltas(deltas)
 
-        # Compute balance deltas: reverse old effect, apply new effect
-        deltas: dict[UUID, float] = defaultdict(float)
-
-        if txn.type == "expense":
-            deltas[txn.wallet_id] += float(txn.amount)
-        elif txn.type == "income":
-            deltas[txn.wallet_id] -= float(txn.amount)
-        elif txn.type == "transfer":
-            deltas[txn.wallet_id] += float(txn.amount)
-            if txn.destination_wallet_id:
-                deltas[txn.destination_wallet_id] -= float(txn.amount)
-
-        if update_in.type == "expense":
-            deltas[update_in.wallet_id] -= update_in.amount
-        elif update_in.type == "income":
-            deltas[update_in.wallet_id] += update_in.amount
-        elif update_in.type == "transfer":
-            deltas[update_in.wallet_id] -= update_in.amount
-            deltas[update_in.destination_wallet_id] += update_in.amount
-
-        for wallet_id, delta in deltas.items():
-            if delta == 0:
-                continue
-            wallet = await self.wallet_repo.get_by_id(wallet_id)
-            if wallet:
-                wallet.balance = float(wallet.balance) + delta
-                self.session.add(wallet)
-
-        # Update transaction fields in place
         for field, value in update_in.model_dump().items():
             setattr(txn, field, value)
         self.session.add(txn)
@@ -166,27 +187,14 @@ class TransactionService:
         if txn.user_id != user_id:
             raise ForbiddenError("Transaction belongs to a different user")
 
-        # Reverse balance effects
-        if txn.type == "expense":
-            wallet = await self.wallet_repo.get_by_id(txn.wallet_id)
-            if wallet:
-                wallet.balance = float(wallet.balance) + float(txn.amount)
-                self.session.add(wallet)
-        elif txn.type == "income":
-            wallet = await self.wallet_repo.get_by_id(txn.wallet_id)
-            if wallet:
-                wallet.balance = float(wallet.balance) - float(txn.amount)
-                self.session.add(wallet)
-        elif txn.type == "transfer":
-            wallet = await self.wallet_repo.get_by_id(txn.wallet_id)
-            if wallet:
-                wallet.balance = float(wallet.balance) + float(txn.amount)
-                self.session.add(wallet)
-            if txn.destination_wallet_id:
-                dest_wallet = await self.wallet_repo.get_by_id(txn.destination_wallet_id)
-                if dest_wallet:
-                    dest_wallet.balance = float(dest_wallet.balance) - float(txn.amount)
-                    self.session.add(dest_wallet)
+        deltas = merge_deltas(
+            negate_effect(
+                transaction_effect(
+                    txn.type, txn.wallet_id, txn.destination_wallet_id, txn.amount
+                )
+            )
+        )
+        await self._apply_deltas(deltas)
 
         await self.session.delete(txn)
         await self.session.commit()

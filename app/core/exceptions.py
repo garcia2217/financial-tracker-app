@@ -10,7 +10,7 @@ class ResourceNotFoundError(AppDomainError):
 
 
 class ForbiddenError(AppDomainError):
-    def __init__(self, message: str = "You do not have permission to perform this action"):
+    def __init__(self, message: str = "You don't have permission to do that."):
         super().__init__(message)
 
 

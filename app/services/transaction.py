@@ -3,16 +3,16 @@ from decimal import Decimal
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppDomainError, ForbiddenError, ResourceNotFoundError
+from app.core.exceptions import (
+    AppDomainError,
+    BusinessRuleViolationError,
+    ForbiddenError,
+    ResourceNotFoundError,
+)
 from app.models.transaction import Transaction
 from app.repositories.transaction import TransactionRepository
 from app.repositories.wallet import WalletRepository
 from app.schemas.transaction import TransactionCreate, TransactionMonthlySummary, TransactionUpdateRequest
-
-
-class BusinessRuleViolationError(AppDomainError):
-    """Raised when a request violates a business rule (e.g. same-wallet transfer)."""
-    pass
 
 
 def transaction_effect(
@@ -109,7 +109,7 @@ class TransactionService:
             raise AppDomainError("Transfers require a destination_wallet_id")
         if wallet_id == destination_wallet_id:
             raise BusinessRuleViolationError(
-                "Source and destination wallet must be different for a transfer"
+                "Source and destination wallet must be different for a transfer."
             )
 
     async def create_transaction(self, transaction_in: TransactionCreate):
@@ -148,7 +148,7 @@ class TransactionService:
         if not txn:
             raise ResourceNotFoundError(resource="Transaction", id=str(transaction_id))
         if txn.user_id != user_id:
-            raise ForbiddenError("Transaction belongs to a different user")
+            raise ForbiddenError()
 
         await self._validate_wallet(update_in.wallet_id, user_id)
 
@@ -185,7 +185,7 @@ class TransactionService:
         if not txn:
             raise ResourceNotFoundError(resource="Transaction", id=str(transaction_id))
         if txn.user_id != user_id:
-            raise ForbiddenError("Transaction belongs to a different user")
+            raise ForbiddenError()
 
         deltas = merge_deltas(
             negate_effect(

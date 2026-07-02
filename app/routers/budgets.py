@@ -6,12 +6,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.exceptions import ResourceNotFoundError
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.schemas.budget import BudgetCreateRequest, BudgetPatchRequest, BudgetResponse
-from app.schemas.response import ApiErrorCode, build_error_response, build_paginated_response, build_success_response
-from app.services.budget import BudgetService, BusinessRuleViolationError
+from app.schemas.response import build_paginated_response, build_success_response
+from app.services.budget import BudgetService
 
 router = APIRouter(prefix="/api/v1/budgets", tags=["budgets"])
 
@@ -59,26 +58,7 @@ async def create_budget(
     request_id = str(uuid.uuid4())
     service = BudgetService(db)
 
-    try:
-        budget = await service.create_budget(current_user.id, body)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
-    except BusinessRuleViolationError as exc:
-        return JSONResponse(
-            status_code=422,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.BUSINESS_RULE_VIOLATION,
-                request_id=request_id,
-            ),
-        )
+    budget = await service.create_budget(current_user.id, body)
 
     return JSONResponse(
         status_code=201,
@@ -100,17 +80,7 @@ async def update_budget(
     request_id = str(uuid.uuid4())
     service = BudgetService(db)
 
-    try:
-        budget = await service.update_budget(budget_id, current_user.id, body.amount)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
+    budget = await service.update_budget(budget_id, current_user.id, body.amount)
 
     return JSONResponse(
         status_code=200,
@@ -128,19 +98,8 @@ async def delete_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    request_id = str(uuid.uuid4())
     service = BudgetService(db)
 
-    try:
-        await service.delete_budget(budget_id, current_user.id)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
+    await service.delete_budget(budget_id, current_user.id)
 
     return Response(status_code=204)

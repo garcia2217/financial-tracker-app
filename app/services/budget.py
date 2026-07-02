@@ -1,15 +1,10 @@
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppDomainError, ResourceNotFoundError
+from app.core.exceptions import BusinessRuleViolationError, ResourceNotFoundError
 from app.repositories.budget import BudgetRepository
 from app.repositories.category import CategoryRepository
 from app.schemas.budget import BudgetCreate, BudgetCreateRequest, BudgetUpdate
-
-
-class BusinessRuleViolationError(AppDomainError):
-    """Raised when a request violates a business rule (e.g. duplicate default budget)."""
-    pass
 
 
 class BudgetService:
@@ -40,7 +35,7 @@ class BudgetService:
             existing = await self.repo.get_default_by_category(user_id, body.category_id)
             if existing:
                 raise BusinessRuleViolationError(
-                    f"A default budget already exists for this category"
+                    "A default budget already exists for this category."
                 )
 
         budget_in = BudgetCreate(user_id=user_id, **body.model_dump())

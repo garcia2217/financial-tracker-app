@@ -15,7 +15,12 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
-from app.core.exceptions import AppDomainError, BusinessRuleViolationError, ResourceNotFoundError
+from app.core.exceptions import (
+    AppDomainError,
+    BusinessRuleViolationError,
+    ForbiddenError,
+    ResourceNotFoundError,
+)
 from app.routers import (
     auth_router,
     budgets_router,
@@ -104,8 +109,20 @@ async def resource_not_found_handler(request: Request, exc: ResourceNotFoundErro
     return JSONResponse(
         status_code=404,
         content=build_error_response(
-            message=str(exc),
+            message=f"That {exc.resource.lower()} could not be found.",
             code=ApiErrorCode.NOT_FOUND,
+            request_id=str(uuid.uuid4()),
+        ),
+    )
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_handler(request: Request, exc: ForbiddenError):
+    return JSONResponse(
+        status_code=403,
+        content=build_error_response(
+            message=str(exc),
+            code=ApiErrorCode.FORBIDDEN,
             request_id=str(uuid.uuid4()),
         ),
     )

@@ -2,16 +2,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
-from app.core.exceptions import AppDomainError, ResourceNotFoundError
+from app.core.exceptions import BusinessRuleViolationError, ResourceNotFoundError
 from app.models.debt import Debt
 from app.repositories.debt import DebtRepository
 from app.repositories.person import PersonRepository
 from app.schemas.debt import DebtCreate, DebtCreateRequest, DebtUpdate
-
-
-class BusinessRuleViolationError(AppDomainError):
-    """Raised when a request violates a business rule (e.g. amount_settled exceeds amount)."""
-    pass
 
 
 def _derive_status(amount_settled: float, amount: float) -> str:
@@ -45,7 +40,7 @@ class DebtService:
             raise ResourceNotFoundError(resource="Debt", id=str(debt_id))
 
         if amount_settled > float(debt.amount):
-            raise BusinessRuleViolationError("amount_settled cannot exceed the debt amount")
+            raise BusinessRuleViolationError("The settled amount cannot exceed the total debt amount.")
 
         status = _derive_status(amount_settled, float(debt.amount))
         return await self.repo.update(debt, DebtUpdate(amount_settled=amount_settled, status=status))

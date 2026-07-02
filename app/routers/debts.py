@@ -6,12 +6,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.exceptions import ResourceNotFoundError
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.schemas.debt import DebtCreateRequest, DebtResponse, DebtSettleRequest
-from app.schemas.response import ApiErrorCode, build_error_response, build_paginated_response, build_success_response
-from app.services.debt import BusinessRuleViolationError, DebtService
+from app.schemas.response import build_paginated_response, build_success_response
+from app.services.debt import DebtService
 
 router = APIRouter(prefix="/api/v1/debts", tags=["debts"])
 
@@ -77,17 +76,7 @@ async def create_debt(
     request_id = str(uuid.uuid4())
     service = DebtService(db)
 
-    try:
-        debt = await service.create_debt(current_user.id, body)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
+    debt = await service.create_debt(current_user.id, body)
 
     return JSONResponse(
         status_code=201,
@@ -109,26 +98,7 @@ async def settle_debt(
     request_id = str(uuid.uuid4())
     service = DebtService(db)
 
-    try:
-        debt = await service.settle_debt(debt_id, current_user.id, body.amount_settled)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
-    except BusinessRuleViolationError as exc:
-        return JSONResponse(
-            status_code=422,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.BUSINESS_RULE_VIOLATION,
-                request_id=request_id,
-            ),
-        )
+    debt = await service.settle_debt(debt_id, current_user.id, body.amount_settled)
 
     return JSONResponse(
         status_code=200,
@@ -146,19 +116,8 @@ async def delete_debt(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    request_id = str(uuid.uuid4())
     service = DebtService(db)
 
-    try:
-        await service.delete_debt(debt_id, current_user.id)
-    except ResourceNotFoundError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=build_error_response(
-                message=str(exc),
-                code=ApiErrorCode.NOT_FOUND,
-                request_id=request_id,
-            ),
-        )
+    await service.delete_debt(debt_id, current_user.id)
 
     return Response(status_code=204)

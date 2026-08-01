@@ -1,5 +1,5 @@
 from uuid import UUID
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
@@ -82,6 +82,29 @@ class WalletRepository:
         update_data = wallet_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_wallet, field, value)
+        self.session.add(db_wallet)
+        await self.session.commit()
+        await self.session.refresh(db_wallet)
+        return db_wallet
+
+    async def set_default(self, db_wallet: Wallet) -> Wallet:
+        """Make this the user's only default wallet.
+
+        The clear must reach the database before the set, or the partial unique
+        index sees two defaults; both writes share one transaction so the user
+        is never observable without a default.
+        """
+        if db_wallet.is_default:
+            return db_wallet
+
+        await self.session.execute(
+            update(Wallet)
+            .where(Wallet.user_id == db_wallet.user_id, Wallet.is_default.is_(True))
+            .values(is_default=False)
+        )
+        await self.session.flush()
+
+        db_wallet.is_default = True
         self.session.add(db_wallet)
         await self.session.commit()
         await self.session.refresh(db_wallet)

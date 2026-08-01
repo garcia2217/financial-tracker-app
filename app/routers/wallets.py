@@ -83,6 +83,24 @@ async def update_wallet(
     )
 
 
+@router.patch("/{wallet_id}/default")
+async def set_default_wallet(
+    wallet_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    request_id = str(uuid.uuid4())
+    service = WalletService(db)
+
+    wallet = await service.set_default_wallet(wallet_id, current_user.id)
+    data = WalletResponse.model_validate(wallet).model_dump(mode="json")
+
+    return JSONResponse(
+        status_code=200,
+        content=build_success_response(data=data, request_id=request_id),
+    )
+
+
 @router.delete("/{wallet_id}")
 async def delete_wallet(
     wallet_id: uuid.UUID,

@@ -11,6 +11,7 @@ from app.schemas.wallet import WalletCreate, WalletUpdate
 # name collision apart from the one-default-per-user index, which can also raise
 # IntegrityError and must not be reported as a duplicate name.
 _NAME_INDEX = "uq_wallets_user_id_lower_name"
+_DEFAULT_INDEX = "uq_wallets_one_default_per_user"
 
 
 def _duplicate_name_error(name: str) -> BusinessRuleViolationError:
@@ -58,6 +59,20 @@ class WalletService:
             if _NAME_INDEX not in str(exc.orig):
                 raise
             raise _duplicate_name_error(wallet_in.name) from exc
+
+    async def set_default_wallet(self, wallet_id: UUID, user_id: UUID):
+        wallet = await self.get_wallet(wallet_id)
+        if wallet.user_id != user_id:
+            raise ResourceNotFoundError(resource="Wallet", id=str(wallet_id))
+        try:
+            return await self.repo.set_default(wallet)
+        except IntegrityError as exc:
+            await self.session.rollback()
+            if _DEFAULT_INDEX not in str(exc.orig):
+                raise
+            raise BusinessRuleViolationError(
+                "Your default wallet was changed by another request. Please try again."
+            ) from exc
 
     async def delete_wallet(self, wallet_id: UUID, user_id: UUID) -> None:
         wallet = await self.get_wallet(wallet_id)

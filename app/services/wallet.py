@@ -1,8 +1,12 @@
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Sequence
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessRuleViolationError, ResourceNotFoundError
+from app.models.wallet import Wallet
 from app.repositories.wallet import WalletRepository
 from app.schemas.wallet import WalletCreate, WalletUpdate
 
@@ -12,6 +16,79 @@ from app.schemas.wallet import WalletCreate, WalletUpdate
 # IntegrityError and must not be reported as a duplicate name.
 _NAME_INDEX = "uq_wallets_user_id_lower_name"
 _DEFAULT_INDEX = "uq_wallets_one_default_per_user"
+
+
+class ChoiceReason(str, Enum):
+    NO_WALLETS = "no_wallets"
+    UNKNOWN_WALLET = "unknown_wallet"
+    AMBIGUOUS_WALLET = "ambiguous_wallet"
+    NO_DEFAULT = "no_default"
+
+
+@dataclass(frozen=True)
+class Resolved:
+    wallet: Wallet
+
+
+@dataclass(frozen=True)
+class NeedsChoice:
+    reason: ChoiceReason
+    candidates: Sequence[Wallet] = field(default_factory=tuple)
+
+
+# Deliberately not `Wallet | None`: a caller handed None can write `or wallets[0]`
+# and silently reinvent the arbitrary-wallet bug this resolution exists to kill.
+WalletResolution = Resolved | NeedsChoice
+
+
+def resolve_wallet(wallets: Sequence[Wallet], mention: str | None) -> WalletResolution:
+    """Decide which wallet a transaction belongs to.
+
+    `mention` is what the user called their account, in their own words, and is
+    untrusted: it is only ever matched against wallets this user owns, so words
+    that match nothing become a question instead of a lookup. A mention that
+    matches nothing asks rather than falling back to the default, since the user
+    did express an intent and guessing past it is how money lands in the wrong
+    account.
+    """
+    if not wallets:
+        return NeedsChoice(reason=ChoiceReason.NO_WALLETS)
+
+    if mention and mention.strip():
+        matches = _match_by_name(wallets, mention)
+        if len(matches) == 1:
+            return Resolved(matches[0])
+        if matches:
+            return NeedsChoice(reason=ChoiceReason.AMBIGUOUS_WALLET, candidates=matches)
+        return NeedsChoice(reason=ChoiceReason.UNKNOWN_WALLET, candidates=wallets)
+
+    default = next((wallet for wallet in wallets if wallet.is_default), None)
+    if default:
+        return Resolved(default)
+
+    if len(wallets) == 1:
+        return Resolved(wallets[0])
+
+    # Unreachable while every user with wallets has a default, which creation,
+    # deletion and the partial unique index maintain. Asking beats guessing if
+    # that ever stops holding.
+    return NeedsChoice(reason=ChoiceReason.NO_DEFAULT, candidates=wallets)
+
+
+def _match_by_name(wallets: Sequence[Wallet], mention: str) -> Sequence[Wallet]:
+    """Wallets a mention could mean, exact before partial.
+
+    Exact is case-insensitive, mirroring the uniqueness the database enforces, so
+    it can only ever match one wallet — "Cash" means Cash even when Petty Cash
+    exists. Partial is what carries "bca" to "BCA Debit", and it can match
+    several, which is why this returns a list and the caller has a branch for
+    ambiguity rather than a rule for breaking ties.
+    """
+    folded = mention.strip().lower()
+    exact = [wallet for wallet in wallets if wallet.name.lower() == folded]
+    if exact:
+        return exact
+    return [wallet for wallet in wallets if folded in wallet.name.lower()]
 
 
 def _duplicate_name_error(name: str) -> BusinessRuleViolationError:

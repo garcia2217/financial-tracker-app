@@ -33,9 +33,10 @@ class GeminiService:
         Returns a dictionary representing the extracted transaction or an error.
 
         wallet_names travels in the request rather than the system instructions,
-        which stay static and shared. It also bounds what the model can say about
-        wallets: a returned name that is not one we sent is discarded, so a
-        hallucinated name never reaches a lookup.
+        which stay static and shared. It is context for recognising that a phrase
+        refers to an account, not a list the model picks from: what comes back is
+        the user's own wording, left for resolve_wallet to match against real
+        wallets. Nothing here treats it as more than free text.
         """
         config = types.GenerateContentConfig(
             system_instruction=self.system_instructions,
@@ -64,12 +65,7 @@ class GeminiService:
             if "error" in extracted_json:
                 return extracted_json
                 
-            extracted = TransactionExtraction(**extracted_json)
-
-            if extracted.wallet not in wallet_names:
-                extracted.wallet = None
-
-            return extracted.model_dump()
+            return TransactionExtraction(**extracted_json).model_dump()
 
         except json.JSONDecodeError:
             return {"error": "Failed to parse API output into valid JSON."}

@@ -1,9 +1,14 @@
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessRuleViolationError, ResourceNotFoundError
 from app.repositories.wallet import WalletRepository
 from app.schemas.wallet import WalletCreate, WalletUpdate
+
+
+def _duplicate_name_error(name: str) -> BusinessRuleViolationError:
+    return BusinessRuleViolationError(f"You already have a wallet named '{name}'.")
 
 
 class WalletService:
@@ -21,13 +26,26 @@ class WalletService:
         return await self.repo.get_user_wallets(user_id)
 
     async def create_wallet(self, wallet_in: WalletCreate):
-        return await self.repo.create(wallet_in)
+        await self._assert_name_available(wallet_in.user_id, wallet_in.name)
+        try:
+            return await self.repo.create(wallet_in)
+        except IntegrityError:
+            await self.session.rollback()
+            raise _duplicate_name_error(wallet_in.name)
 
     async def update_wallet(self, wallet_id: UUID, user_id: UUID, wallet_in: WalletUpdate):
         wallet = await self.get_wallet(wallet_id)
         if wallet.user_id != user_id:
             raise ResourceNotFoundError(resource="Wallet", id=str(wallet_id))
-        return await self.repo.update(wallet, wallet_in)
+        if wallet_in.name is None:
+            return await self.repo.update(wallet, wallet_in)
+
+        await self._assert_name_available(user_id, wallet_in.name, exclude_wallet_id=wallet_id)
+        try:
+            return await self.repo.update(wallet, wallet_in)
+        except IntegrityError:
+            await self.session.rollback()
+            raise _duplicate_name_error(wallet_in.name)
 
     async def delete_wallet(self, wallet_id: UUID, user_id: UUID) -> None:
         wallet = await self.get_wallet(wallet_id)
@@ -38,3 +56,10 @@ class WalletService:
                 "Cannot delete a wallet that has associated transactions."
             )
         await self.repo.delete(wallet)
+
+    async def _assert_name_available(
+        self, user_id: UUID, name: str, exclude_wallet_id: UUID | None = None
+    ) -> None:
+        existing = await self.repo.get_user_wallet_by_name(user_id, name, exclude_wallet_id)
+        if existing:
+            raise _duplicate_name_error(name)

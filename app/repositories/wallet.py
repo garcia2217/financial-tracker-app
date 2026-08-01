@@ -1,5 +1,5 @@
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Sequence
 
@@ -31,8 +31,25 @@ class WalletRepository:
         return result.scalars().first()
 
     async def get_user_wallets(self, user_id: UUID) -> Sequence[Wallet]:
-        result = await self.session.execute(select(Wallet).where(Wallet.user_id == user_id))
+        result = await self.session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .order_by(Wallet.created_at, Wallet.id)
+        )
         return result.scalars().all()
+
+    async def get_user_wallet_by_name(
+        self, user_id: UUID, name: str, exclude_wallet_id: UUID | None = None
+    ) -> Wallet | None:
+        """Look up a wallet by name, matching the case-insensitive uniqueness the DB enforces."""
+        stmt = select(Wallet).where(
+            Wallet.user_id == user_id,
+            func.lower(Wallet.name) == name.lower(),
+        )
+        if exclude_wallet_id is not None:
+            stmt = stmt.where(Wallet.id != exclude_wallet_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
 
     async def create(self, wallet_in: WalletCreate) -> Wallet:
         db_wallet = Wallet(**wallet_in.model_dump(exclude_unset=True))

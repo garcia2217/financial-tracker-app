@@ -3,13 +3,11 @@ from collections import deque
 from fastapi import APIRouter, Depends
 from app.dependencies.telegram import verify_telegram_secret
 from app.schemas.telegram import TelegramWebhook
-from app.schemas.user import UserCreate, UserUpdate
-from app.schemas.wallet import WalletCreate
 from app.schemas.transaction import TransactionCreate
 
 from app.services.user import UserService
 from app.services.category import CategoryService
-from app.services.wallet import WalletService
+from app.services.wallet import ChoiceReason, NeedsChoice, WalletService, resolve_wallet
 from app.services.transaction import TransactionService
 from app.services.gemini import GeminiService
 from app.services.telegram_bot import TelegramBotService
@@ -39,7 +37,35 @@ STATE_AWAITING_PASSWORD = "AWAITING_PASSWORD"
 STATE_ACTIVE = "ACTIVE"
 
 
-# Removed old auth handlers
+def _choice_reply(resolution: NeedsChoice, mention: str | None) -> str:
+    """What to say when the transaction was not recorded.
+
+    Every branch names the wallets involved, since the user has to repeat the
+    message and the reply is the only place they can learn what to write.
+    """
+    names = ", ".join(wallet.name for wallet in resolution.candidates)
+
+    if resolution.reason is ChoiceReason.NO_WALLETS:
+        return (
+            "You don't have any wallets yet, so I can't record this. "
+            "Create one in the dashboard first, then send the message again."
+        )
+    if resolution.reason is ChoiceReason.UNKNOWN_WALLET:
+        return (
+            f"I don't know a wallet called '{mention}', so nothing was recorded.\n"
+            f"You have: {names}.\n"
+            "Send the message again naming one of those."
+        )
+    if resolution.reason is ChoiceReason.AMBIGUOUS_WALLET:
+        return (
+            f"'{mention}' matches more than one of your wallets: {names}.\n"
+            "Send the message again with the full name so I don't guess."
+        )
+    return (
+        f"You have several wallets ({names}) and no default, so I can't tell "
+        "where this belongs.\nName the wallet in your message, or set a default "
+        "in the dashboard."
+    )
 
 
 async def _handle_transaction(
@@ -61,15 +87,21 @@ async def _handle_transaction(
         await telegram_service.send_message(chat_id, f"Oops: {parsed_data['error']}")
         return
 
-    amount = parsed_data.get("amount")
-    txn_type = parsed_data.get("type", "expense")
-    cat_name = parsed_data.get("category", "Other")
-    desc = parsed_data.get("description", "No description provided")
+    mention = parsed_data["wallet_mention"]
+    resolution = resolve_wallet(user_wallets, mention)
+    if isinstance(resolution, NeedsChoice):
+        await telegram_service.send_message(chat_id, _choice_reply(resolution, mention))
+        return
+    wallet = resolution.wallet
 
-    category = await category_service.get_or_create_by_name(user_id, cat_name, txn_type)
+    amount = parsed_data["amount"]
+    txn_type = parsed_data["type"]
+    desc = parsed_data["description"]
 
-    wallet = user_wallets[0] if user_wallets else await wallet_service.create_wallet(
-        WalletCreate(user_id=user_id, name="Cash", balance=0.0)
+    # After resolution: an unrecorded transaction should not leave a new category
+    # behind as a side effect of asking which wallet it belongs to.
+    category = await category_service.get_or_create_by_name(
+        user_id, parsed_data["category"], txn_type
     )
 
     txn_create = TransactionCreate(

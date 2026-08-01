@@ -49,6 +49,7 @@ Assign every transaction to a **Type** (expense or income) and exactly one **Cat
 2. **Math:** If the user mentions multiple costs (e.g., "50 for a shirt and 20 for a tie"), sum them: `70`.
 3. **Currency:** Remove all currency symbols ($, £, Rp). Round decimals to the nearest whole integer.
 4. **Brands:** Prioritize brand-to-category mapping (e.g., "Starbucks" -> **Dining Out**; "Netflix" -> **Subscriptions**).
+5. **Wallet:** Every input is prefixed with `Available wallets: [...]`. If the text names one of those wallets — including a partial or differently-cased mention, e.g. "pakai bca" for `"BCA Debit"` — set `wallet` to that entry **copied character for character from the list**. In every other case set it to `null`: when no wallet is mentioned, when the mentioned wallet is not in the list, when the list is empty, or when two entries match the mention equally well. Never invent a name, never return an id, and never reshape a name you were given.
 
 ## Schema Definition
 
@@ -57,6 +58,7 @@ Assign every transaction to a **Type** (expense or income) and exactly one **Cat
   "amount": <integer>,
   "type": "expense" | "income",
   "category": "<CategoryName>",
-  "description": "<string>"
+  "description": "<string>",
+  "wallet": "<exact entry from Available wallets>" | null
 }
 ```

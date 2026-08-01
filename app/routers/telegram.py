@@ -52,7 +52,10 @@ async def _handle_transaction(
     transaction_service: TransactionService,
     telegram_service: TelegramBotService,
 ) -> None:
-    parsed_data = await gemini_service.parse_transaction_text(text)
+    user_wallets = await wallet_service.get_user_wallets(user_id)
+    parsed_data = await gemini_service.parse_transaction_text(
+        text, [wallet.name for wallet in user_wallets]
+    )
 
     if "error" in parsed_data:
         await telegram_service.send_message(chat_id, f"Oops: {parsed_data['error']}")
@@ -65,7 +68,6 @@ async def _handle_transaction(
 
     category = await category_service.get_or_create_by_name(user_id, cat_name, txn_type)
 
-    user_wallets = await wallet_service.get_user_wallets(user_id)
     wallet = user_wallets[0] if user_wallets else await wallet_service.create_wallet(
         WalletCreate(user_id=user_id, name="Cash", balance=0.0)
     )

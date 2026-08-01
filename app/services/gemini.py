@@ -1,47 +1,53 @@
 import os
 import json
+from typing import Sequence
 from google import genai
 from google.genai import types
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.schemas.transaction import TransactionBase
+from app.schemas.extraction import TransactionExtraction
 
-# Assume SYSTEM_INSTRUCTIONS.md is in the project root
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INSTRUCTIONS_PATH = os.path.join(ROOT_DIR, "SYSTEM_INSTRUCTIONS.md")
 
 class GeminiService:
     def __init__(self):
-        # We only need one client instance globally, initialized here
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        self._load_instructions()
+        self.system_instructions = self._load_instructions()
 
-    def _load_instructions(self):
-        if os.path.exists(INSTRUCTIONS_PATH):
-            with open(INSTRUCTIONS_PATH, "r", encoding="utf-8") as f:
-                self.system_instructions = f.read()
-        else:
-            self.system_instructions = (
-                "You are a Financial Data Extraction Specialist. "
-                "Parse expenses to JSON with 'amount', 'type', 'category', 'description'."
-            )
+    @staticmethod
+    def _load_instructions() -> str:
+        """Read the extraction contract, or fail.
 
-    async def parse_transaction_text(self, text: str) -> dict:
+        No inline fallback: it would be a second copy of the contract to keep in
+        step with the schema, and a missing file would surface as invented
+        categories and dropped wallet hints rather than as an error.
+        """
+        with open(INSTRUCTIONS_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+
+    async def parse_transaction_text(self, text: str, wallet_names: Sequence[str]) -> dict:
         """
         Sends the user text to Gemini and parses the structured response.
         Returns a dictionary representing the extracted transaction or an error.
+
+        wallet_names travels in the request rather than the system instructions,
+        which stay static and shared. It also bounds what the model can say about
+        wallets: a returned name that is not one we sent is discarded, so a
+        hallucinated name never reaches a lookup.
         """
         config = types.GenerateContentConfig(
             system_instruction=self.system_instructions,
             response_mime_type="application/json",
             temperature=0.0, # Deterministic extraction behavior
         )
+        contents = f"Available wallets: {json.dumps(list(wallet_names))}\n\nTransaction: {text}"
 
         try:
             response = await self.client.aio.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=text,
+                contents=contents,
                 config=config,
             )
             
@@ -58,11 +64,13 @@ class GeminiService:
             if "error" in extracted_json:
                 return extracted_json
                 
-            # Basic validation using our schema to ensure no arbitrary keys are injected
-            TransactionBase(**extracted_json)
-            
-            return extracted_json
-            
+            extracted = TransactionExtraction(**extracted_json)
+
+            if extracted.wallet not in wallet_names:
+                extracted.wallet = None
+
+            return extracted.model_dump()
+
         except json.JSONDecodeError:
             return {"error": "Failed to parse API output into valid JSON."}
         except ValidationError as e:

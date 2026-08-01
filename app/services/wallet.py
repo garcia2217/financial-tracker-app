@@ -7,6 +7,12 @@ from app.repositories.wallet import WalletRepository
 from app.schemas.wallet import WalletCreate, WalletUpdate
 
 
+# Matches the index name in the wallets model and its migration. Used to tell a
+# name collision apart from the one-default-per-user index, which can also raise
+# IntegrityError and must not be reported as a duplicate name.
+_NAME_INDEX = "uq_wallets_user_id_lower_name"
+
+
 def _duplicate_name_error(name: str) -> BusinessRuleViolationError:
     return BusinessRuleViolationError(f"You already have a wallet named '{name}'.")
 
@@ -27,11 +33,15 @@ class WalletService:
 
     async def create_wallet(self, wallet_in: WalletCreate):
         await self._assert_name_available(wallet_in.user_id, wallet_in.name)
+        if not await self.repo.has_wallets(wallet_in.user_id):
+            wallet_in = wallet_in.model_copy(update={"is_default": True})
         try:
             return await self.repo.create(wallet_in)
-        except IntegrityError:
+        except IntegrityError as exc:
             await self.session.rollback()
-            raise _duplicate_name_error(wallet_in.name)
+            if _NAME_INDEX not in str(exc.orig):
+                raise
+            raise _duplicate_name_error(wallet_in.name) from exc
 
     async def update_wallet(self, wallet_id: UUID, user_id: UUID, wallet_in: WalletUpdate):
         wallet = await self.get_wallet(wallet_id)
@@ -43,9 +53,11 @@ class WalletService:
         await self._assert_name_available(user_id, wallet_in.name, exclude_wallet_id=wallet_id)
         try:
             return await self.repo.update(wallet, wallet_in)
-        except IntegrityError:
+        except IntegrityError as exc:
             await self.session.rollback()
-            raise _duplicate_name_error(wallet_in.name)
+            if _NAME_INDEX not in str(exc.orig):
+                raise
+            raise _duplicate_name_error(wallet_in.name) from exc
 
     async def delete_wallet(self, wallet_id: UUID, user_id: UUID) -> None:
         wallet = await self.get_wallet(wallet_id)

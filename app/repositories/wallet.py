@@ -7,6 +7,11 @@ from app.models.transaction import Transaction
 from app.models.wallet import Wallet
 from app.schemas.wallet import WalletCreate, WalletUpdate
 
+# Oldest first. The default wallet is picked by this same order, so listing and
+# defaulting can never disagree.
+_WALLET_ORDER = (Wallet.created_at, Wallet.id)
+
+
 class WalletRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -34,9 +39,24 @@ class WalletRepository:
         result = await self.session.execute(
             select(Wallet)
             .where(Wallet.user_id == user_id)
-            .order_by(Wallet.created_at, Wallet.id)
+            .order_by(*_WALLET_ORDER)
         )
         return result.scalars().all()
+
+    async def get_oldest_wallet(self, user_id: UUID) -> Wallet | None:
+        result = await self.session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .order_by(*_WALLET_ORDER)
+            .limit(1)
+        )
+        return result.scalars().first()
+
+    async def has_wallets(self, user_id: UUID) -> bool:
+        result = await self.session.execute(
+            select(Wallet.id).where(Wallet.user_id == user_id).limit(1)
+        )
+        return result.scalars().first() is not None
 
     async def get_user_wallet_by_name(
         self, user_id: UUID, name: str, exclude_wallet_id: UUID | None = None
@@ -74,5 +94,20 @@ class WalletRepository:
         return result.scalars().first() is not None
 
     async def delete(self, db_wallet: Wallet) -> None:
+        """Delete a wallet, promoting the oldest survivor when it was the default.
+
+        Both writes share one transaction, so a user with remaining wallets is
+        never observable without a default.
+        """
+        promote_successor = db_wallet.is_default
+        user_id = db_wallet.user_id
         await self.session.delete(db_wallet)
+
+        if promote_successor:
+            await self.session.flush()
+            successor = await self.get_oldest_wallet(user_id)
+            if successor:
+                successor.is_default = True
+                self.session.add(successor)
+
         await self.session.commit()

@@ -19,6 +19,7 @@ class WalletBody(BaseModel):
 class WalletCreate(WalletBase):
     user_id: UUID
     balance: Balance = Decimal("0")
+    is_default: bool = False
 
 class WalletUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -29,6 +30,7 @@ class WalletResponse(WalletBase):
     user_id: UUID
     # Emit money as a JSON number for wire compatibility (display only, no arithmetic).
     balance: float
+    is_default: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
 

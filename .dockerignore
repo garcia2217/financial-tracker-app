@@ -3,12 +3,15 @@
 .git/
 .claude/
 .vscode/
+.pytest_cache/
 __pycache__/
 *.pyc
 *.pyo
 docs/
+tests/
 PRE_DEPLOY_ISSUES.md
 README.md
 FEATURES.md
 RULES.md
 API_SCHEMAS.md
+TICKET-*.md
